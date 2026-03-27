@@ -33,7 +33,8 @@ app.get('/api/health', async (req, res) => {
   STEP 1 DATABASE UPGRADE ROUTE
   Run once after deploy:
   /setup-v2
-*/app.get('/setup-v2', async (req, res) => {
+*/
+app.get('/setup-v2', async (req, res) => {
   try {
     await pool.query(`
       CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -48,7 +49,12 @@ app.get('/api/health', async (req, res) => {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
-
+      ALTER TABLE contractors
+        ADD COLUMN IF NOT EXISTS business_name TEXT,
+        ADD COLUMN IF NOT EXISTS email TEXT,
+        ADD COLUMN IF NOT EXISTS phone TEXT,
+        ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active',
+        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
       CREATE TABLE IF NOT EXISTS financial_entries (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         contractor_id UUID REFERENCES contractors(id) ON DELETE CASCADE,
