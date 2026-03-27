@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>1099 Document Portal</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #0a0a0a;
+      color: white;
+      padding: 20px;
+    }
+
+    h1 {
+      color: gold;
+    }
+
+    h2 {
+      margin-top: 30px;
+    }
+
+    input, button {
+      padding: 10px;
+      margin: 5px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    input {
+      width: 200px;
+    }
+
+    button {
+      background: gold;
+      color: black;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .card {
+      background: #111;
+      padding: 15px;
+      margin-top: 10px;
+      border-radius: 10px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>1099 Document Portal</h1>
+
+<h2>Create Contractor</h2>
+
+<input id="name" placeholder="Contractor Name">
+<input id="email" placeholder="Email">
+<input id="phone" placeholder="Phone">
+
+<br>
+
+<button onclick="createContractor()">Create Contractor</button>
+
+<h2>Contractors</h2>
+
+<div id="contractors"></div>
+
+<script>
+
+const API = "https://one099-document-portal2.onrender.com";
+
+async function createContractor() {
+  const name = document.getElementById("name").value;
+  const email = document.getElementById("email").value;
+  const phone = document.getElementById("phone").value;
+
+  if (!name) {
+    alert("Contractor name is required");
+    return;
+  }
+
+  await fetch(API + "/api/contractors", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      contractor_name: name,
+      email: email,
+      phone: phone
+    })
+  });
+
+  document.getElementById("name").value = "";
+  document.getElementById("email").value = "";
+  document.getElementById("phone").value = "";
+
+  loadContractors();
+}
+
+async function loadContractors() {
+  const res = await fetch(API + "/api/contractors");
+  const data = await res.json();
+
+  const div = document.getElementById("contractors");
+  div.innerHTML = "";
+
+  data.forEach(c => {
+    div.innerHTML += `
+      <div class="card">
+        <b>${c.contractor_name}</b><br>
+        ${c.email || ""}<br>
+        ${c.phone || ""}
+      </div>
+    `;
+  });
+}
+
+loadContractors();
+
+</script>
+
+</body>
+</html>
