@@ -1,123 +1,411 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>1099 Document Portal</title>
 
   <style>
+    :root {
+      --red: #c62828;
+      --green: #1b5e20;
+      --green-light: #2e7d32;
+      --yellow: #f4c542;
+      --white: #ffffff;
+      --off-white: #f7f8fa;
+      --gray: #6b7280;
+      --border: #d9dee5;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      --radius: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
-      font-family: Arial;
-      background: #0a0a0a;
-      color: white;
-      padding: 20px;
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef3f7 100%);
+      color: #18212b;
     }
 
-    h1 {
-      color: gold;
+    .topbar {
+      background: linear-gradient(90deg, var(--green) 0%, var(--red) 100%);
+      color: var(--white);
+      padding: 18px 28px;
+      box-shadow: var(--shadow);
     }
 
-    h2 {
-      margin-top: 30px;
+    .topbar h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
     }
 
-    input, button {
-      padding: 10px;
-      margin: 5px;
-      border-radius: 5px;
-      border: none;
+    .topbar p {
+      margin: 6px 0 0;
+      opacity: 0.95;
+      font-size: 14px;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 28px auto;
+      padding: 0 20px 40px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      color: var(--green);
+    }
+
+    .panel p {
+      margin: 0 0 18px;
+      color: var(--gray);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #304050;
+      margin-bottom: 6px;
+      display: block;
     }
 
     input {
-      width: 200px;
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus {
+      border-color: var(--green-light);
+      box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.12);
+    }
+
+    .actions {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
     }
 
     button {
-      background: gold;
-      color: black;
-      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      padding: 13px 18px;
+      font-size: 15px;
+      font-weight: 700;
       cursor: pointer;
+      transition: transform 0.05s ease, opacity 0.2s ease;
     }
 
-    .card {
-      background: #111;
-      padding: 15px;
-      margin-top: 10px;
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .primary-btn {
+      background: var(--yellow);
+      color: #1d1d1d;
+    }
+
+    .secondary-btn {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px 14px;
       border-radius: 10px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status.success {
+      display: block;
+      background: #e9f7ec;
+      color: #1b5e20;
+      border: 1px solid #bfe2c7;
+    }
+
+    .status.error {
+      display: block;
+      background: #fdecec;
+      color: var(--red);
+      border: 1px solid #f3c2c2;
+    }
+
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .list-header h2 {
+      margin: 0;
+      font-size: 24px;
+      color: var(--red);
+    }
+
+    .muted {
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    .contractors-empty {
+      padding: 24px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: #fafbfc;
+      color: var(--gray);
+      text-align: center;
+    }
+
+    .contractor-card {
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--green);
+      border-radius: 12px;
+      padding: 18px;
+      background: #fff;
+      margin-bottom: 14px;
+    }
+
+    .contractor-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1f2d3a;
+      margin-bottom: 8px;
+    }
+
+    .contractor-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      font-size: 14px;
+      color: #425466;
+    }
+
+    .meta-label {
+      font-weight: 700;
+      color: #22313f;
+    }
+
+    .loading {
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar h1 {
+        font-size: 28px;
+      }
+
+      .contractor-meta {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
-
 <body>
+  <div class="topbar">
+    <h1>1099 Document Portal</h1>
+    <p>Contractor intake, document collection, review workflow, and P&amp;L preparation.</p>
+  </div>
 
-<h1>1099 Document Portal</h1>
+  <div class="page">
+    <div class="grid">
+      <div class="panel">
+        <h2>Create Contractor</h2>
+        <p>Add a contractor record to begin collecting documents, entries, and monthly reporting data.</p>
 
-<h2>Create Contractor</h2>
+        <div class="field-group">
+          <div>
+            <label for="name">Contractor Name</label>
+            <input id="name" placeholder="Enter contractor name" />
+          </div>
 
-<input id="name" placeholder="Contractor Name">
-<input id="email" placeholder="Email">
-<input id="phone" placeholder="Phone">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" placeholder="Enter email address" />
+          </div>
 
-<br>
+          <div>
+            <label for="phone">Phone</label>
+            <input id="phone" placeholder="Enter phone number" />
+          </div>
+        </div>
 
-<button onclick="createContractor()">Create Contractor</button>
+        <div class="actions">
+          <button class="primary-btn" onclick="createContractor()">Create Contractor</button>
+          <button class="secondary-btn" onclick="loadContractors()">Refresh List</button>
+        </div>
 
-<h2>Contractors</h2>
-
-<div id="contractors"></div>
-
-<script>
-
-const API = "https://one099-document-portal2.onrender.com";
-
-async function createContractor() {
-  const name = document.getElementById("name").value;
-  const email = document.getElementById("email").value;
-  const phone = document.getElementById("phone").value;
-
-  if (!name) {
-    alert("Contractor name is required");
-    return;
-  }
-
-  await fetch(API + "/api/contractors", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      contractor_name: name,
-      email: email,
-      phone: phone
-    })
-  });
-
-  document.getElementById("name").value = "";
-  document.getElementById("email").value = "";
-  document.getElementById("phone").value = "";
-
-  loadContractors();
-}
-
-async function loadContractors() {
-  const res = await fetch(API + "/api/contractors");
-  const data = await res.json();
-
-  const div = document.getElementById("contractors");
-  div.innerHTML = "";
-
-  data.forEach(c => {
-    div.innerHTML += `
-      <div class="card">
-        <b>${c.contractor_name}</b><br>
-        ${c.email || ""}<br>
-        ${c.phone || ""}
+        <div id="statusBox" class="status"></div>
       </div>
-    `;
-  });
-}
 
-loadContractors();
+      <div class="panel">
+        <div class="list-header">
+          <div>
+            <h2>Contractors</h2>
+            <div class="muted">This list is loaded directly from your Render/Postgres backend.</div>
+          </div>
+        </div>
 
-</script>
+        <div id="contractors" class="loading">Loading contractors...</div>
+      </div>
+    </div>
+  </div>
 
+  <script>
+    const API = "https://one099-document-portal2.onrender.com";
+
+    function showStatus(message, type) {
+      const box = document.getElementById("statusBox");
+      box.className = "status " + type;
+      box.textContent = message;
+    }
+
+    function clearStatus() {
+      const box = document.getElementById("statusBox");
+      box.className = "status";
+      box.textContent = "";
+    }
+
+    async function createContractor() {
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+
+      clearStatus();
+
+      if (!name) {
+        showStatus("Contractor name is required.", "error");
+        return;
+      }
+
+      try {
+        const res = await fetch(API + "/api/contractors", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            contractor_name: name,
+            email: email,
+            phone: phone
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showStatus(data.error || "Unable to create contractor.", "error");
+          return;
+        }
+
+        document.getElementById("name").value = "";
+        document.getElementById("email").value = "";
+        document.getElementById("phone").value = "";
+
+        showStatus("Contractor created successfully.", "success");
+        await loadContractors();
+      } catch (error) {
+        console.error("Create contractor error:", error);
+        showStatus("Request failed. Check browser console for details.", "error");
+      }
+    }
+
+    async function loadContractors() {
+      const div = document.getElementById("contractors");
+      div.className = "loading";
+      div.textContent = "Loading contractors...";
+
+      try {
+        const res = await fetch(API + "/api/contractors");
+        const data = await res.json();
+
+        if (!res.ok) {
+          div.className = "";
+          div.innerHTML = `<div class="contractors-empty">Failed to load contractors.</div>`;
+          return;
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+          div.className = "";
+          div.innerHTML = `
+            <div class="contractors-empty">
+              No contractors yet. Create your first contractor using the form on the left.
+            </div>
+          `;
+          return;
+        }
+
+        div.className = "";
+        div.innerHTML = "";
+
+        data.forEach(c => {
+          div.innerHTML += `
+            <div class="contractor-card">
+              <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
+              <div class="contractor-meta">
+                <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
+                <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
+                <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
+                <div><span class="meta-label">Contractor ID:</span> ${c.id || "—"}</div>
+              </div>
+            </div>
+          `;
+        });
+      } catch (error) {
+        console.error("Load contractors error:", error);
+        div.className = "";
+        div.innerHTML = `
+          <div class="contractors-empty">
+            Could not connect to the backend. Open the browser console and check the network request.
+          </div>
+        `;
+      }
+    }
+
+    loadContractors();
+  </script>
 </body>
 </html>
