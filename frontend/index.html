@@ -383,16 +383,24 @@
 
         data.forEach(c => {
           div.innerHTML += `
-            <div class="contractor-card">
+             <div class="contractor-card">
               <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
+
               <div class="contractor-meta">
                 <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
                 <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
                 <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
-                <div><span class="meta-label">Contractor ID:</span> ${c.id || "—"}</div>
+                <div><span class="meta-label">Contractor ID:</span> ${c.id}</div>
               </div>
-            </div>
-          `;
+
+              <div style="margin-top:15px;">
+                <button onclick="uploadDocument('${c.id}')">📤 Upload Document</button>
+              </div>
+
+              <div id="docs-${c.id}" style="margin-top:10px; font-size:13px;"></div>
+              </div>
+            `;
+          loadDocuments(c.id);
         });
       } catch (error) {
         console.error("Load contractors error:", error);
@@ -404,7 +412,69 @@
         `;
       }
     }
+      async function uploadDocument(contractorId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*,application/pdf";
+  input.capture = "environment";
 
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+
+    try {
+      const res = await fetch(API + "/api/documents", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          contractor_id: contractorId,
+          file_name: file.name,
+          document_type: "upload"
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Upload failed");
+        return;
+      }
+
+      alert("Document uploaded");
+      loadDocuments(contractorId);
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Upload failed");
+    }
+  };
+
+  input.click();
+}
+
+async function loadDocuments(contractorId) {
+  try {
+    const res = await fetch(API + "/api/documents/" + contractorId);
+    const data = await res.json();
+
+    const div = document.getElementById("docs-" + contractorId);
+    if (!div) return;
+
+    div.innerHTML = "";
+
+    if (!Array.isArray(data) || data.length === 0) {
+      div.innerHTML = `<div style="color:#666;">No documents uploaded yet.</div>`;
+      return;
+    }
+
+    data.forEach(doc => {
+      div.innerHTML += `<div style="margin-top:6px;">📄 ${doc.file_name}</div>`;
+    });
+  } catch (err) {
+    console.error("Load documents error:", err);
+  }
+}
     loadContractors();
   </script>
 </body>
