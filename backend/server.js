@@ -603,7 +603,78 @@ app.get('/api/reports/:contractorId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+/*
+  DOCUMENT UPLOAD (METADATA ONLY FOR NOW)
+*/
+app.post('/api/documents', async (req, res) => {
+  const {
+    contractor_id,
+    document_type,
+    file_name,
+    storage_reference,
+    period_month,
+    period_year,
+    notes
+  } = req.body;
 
+  if (!contractor_id || !file_name) {
+    return res.status(400).json({ error: 'contractor_id and file_name required' });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO documents (
+        contractor_id,
+        document_type,
+        file_name,
+        storage_reference,
+        period_month,
+        period_year,
+        notes
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      RETURNING *
+      `,
+      [
+        contractor_id,
+        document_type || 'general',
+        file_name,
+        storage_reference || null,
+        period_month || null,
+        period_year || null,
+        notes || null
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Document error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/*
+  GET DOCUMENTS FOR CONTRACTOR
+*/
+app.get('/api/documents/:contractorId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE contractor_id = $1
+      ORDER BY created_at DESC
+      `,
+      [req.params.contractorId]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Load documents error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
