@@ -33,8 +33,7 @@ app.get('/api/health', async (req, res) => {
   STEP 1 DATABASE UPGRADE ROUTE
   Run once after deploy:
   /setup-v2
-*/
-app.get('/setup-v2', async (req, res) => {
+*/app.get('/setup-v2', async (req, res) => {
   try {
     await pool.query(`
       CREATE EXTENSION IF NOT EXISTS "pgcrypto";
@@ -45,21 +44,10 @@ app.get('/setup-v2', async (req, res) => {
         business_name TEXT,
         email TEXT,
         phone TEXT,
-        ra_contact_id TEXT,
         status TEXT NOT NULL DEFAULT 'active',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
-
-      CREATE UNIQUE INDEX IF NOT EXISTS idx_contractors_ra_contact_id
-      ON contractors(ra_contact_id);
-
-      ALTER TABLE contractors
-        ADD COLUMN IF NOT EXISTS business_name TEXT,
-        ADD COLUMN IF NOT EXISTS phone TEXT,
-        ADD COLUMN IF NOT EXISTS ra_contact_id TEXT,
-        ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active',
-        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
       CREATE TABLE IF NOT EXISTS financial_entries (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -84,18 +72,6 @@ app.get('/setup-v2', async (req, res) => {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
-
-      ALTER TABLE financial_entries
-        ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'manual',
-        ADD COLUMN IF NOT EXISTS original_description TEXT,
-        ADD COLUMN IF NOT EXISTS original_vendor_or_payor TEXT,
-        ADD COLUMN IF NOT EXISTS reviewed_description TEXT,
-        ADD COLUMN IF NOT EXISTS reviewed_vendor_or_payor TEXT,
-        ADD COLUMN IF NOT EXISTS included_in_pl BOOLEAN NOT NULL DEFAULT true,
-        ADD COLUMN IF NOT EXISTS is_overridden BOOLEAN NOT NULL DEFAULT false,
-        ADD COLUMN IF NOT EXISTS override_reason TEXT,
-        ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP,
-        ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
 
       CREATE TABLE IF NOT EXISTS entry_notes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -143,7 +119,7 @@ app.get('/setup-v2', async (req, res) => {
       );
     `);
 
-    res.json({ message: 'Database setup v2 complete' });
+    res.json({ message: 'Database setup v2 complete (clean)' });
   } catch (error) {
     console.error('Setup v2 error:', error);
     res.status(500).json({ error: error.message });
@@ -159,7 +135,6 @@ app.post('/api/contractors', async (req, res) => {
     business_name,
     email,
     phone,
-    ra_contact_id,
     status
   } = req.body;
 
@@ -175,10 +150,9 @@ app.post('/api/contractors', async (req, res) => {
         business_name,
         email,
         phone,
-        ra_contact_id,
         status
       )
-      VALUES ($1, $2, $3, $4, $5, $6)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING *
       `,
       [
@@ -186,7 +160,6 @@ app.post('/api/contractors', async (req, res) => {
         business_name || null,
         email || null,
         phone || null,
-        ra_contact_id || null,
         status || 'active'
       ]
     );
