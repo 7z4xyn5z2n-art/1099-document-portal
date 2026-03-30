@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
+const multer = require('multer');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -13,6 +15,18 @@ const pool = new Pool({
   ssl: process.env.NODE_ENV === 'production'
     ? { rejectUnauthorized: false }
     : false,
+});
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 15 * 1024 * 1024
+  }
 });
 
 app.get('/', (req, res) => {
@@ -610,24 +624,37 @@ app.get('/api/reports/:contractorId', async (req, res) => {
   }
 });
 /*
-  DOCUMENT UPLOAD (METADATA ONLY FOR NOW)
+  DOCUMENT UPLOAD (REAL FILE STORAGE)
 */
-app.post('/api/documents', async (req, res) => {
-  const {
-    contractor_id,
-    document_type,
-    file_name,
-    storage_reference,
-    period_month,
-    period_year,
-    notes
-  } = req.body;
-
-  if (!contractor_id || !file_name) {
-    return res.status(400).json({ error: 'contractor_id and file_name required' });
-  }
-
+app.post('/api/documents', upload.single('file'), async (req, res) => {
   try {
+    const {
+      contractor_id,
+      document_type,
+      period_month,
+      period_year,
+      notes
+    } = req.body;
+
+    const file = req.file;
+
+    if (!contractor_id || !file) {
+      return res.status(400).json({ error: 'contractor_id and file required' });
+    }
+
+    const filePath = `${contractor_id}/${Date.now()}-${file.originalname}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('contractor-docs')
+      .upload(filePath, file.buffer, {
+        contentType: file.mimetype
+      });
+
+    if (uploadError) {
+      console.error('Supabase upload error:', uploadError);
+      return res.status(500).json({ error: uploadError.message });
+    }
+
     const result = await pool.query(
       `
       INSERT INTO documents (
@@ -645,8 +672,8 @@ app.post('/api/documents', async (req, res) => {
       [
         contractor_id,
         document_type || 'general',
-        file_name,
-        storage_reference || null,
+        file.originalname,
+        filePath,
         period_month || null,
         period_year || null,
         notes || null
@@ -655,7 +682,7 @@ app.post('/api/documents', async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error('Document error:', err);
+    console.error('Upload error:', err);
     res.status(500).json({ error: err.message });
   }
 });
@@ -681,6 +708,7 @@ app.get('/api/documents/:contractorId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
