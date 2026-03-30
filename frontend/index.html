@@ -382,26 +382,41 @@
         div.innerHTML = "";
 
         data.forEach(c => {
-          div.innerHTML += `
-             <div class="contractor-card">
-              <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
+  div.innerHTML += `
+    <div class="contractor-card">
+      <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
 
-              <div class="contractor-meta">
-                <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
-                <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
-                <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
-                <div><span class="meta-label">Contractor ID:</span> ${c.id}</div>
-              </div>
+      <div class="contractor-meta">
+        <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
+        <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
+        <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
+        <div><span class="meta-label">Contractor ID:</span> ${c.id}</div>
+      </div>
 
-              <div style="margin-top:15px;">
-                <button onclick="uploadDocument('${c.id}')">📤 Upload Document</button>
-              </div>
+      <div style="margin-top:15px;">
+        <div style="margin-bottom:8px;">
+          <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+            <option value="receipt">Receipt</option>
+            <option value="statement">Bank / Card Statement</option>
+            <option value="invoice">Invoice</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
 
-              <div id="docs-${c.id}" style="margin-top:10px; font-size:13px;"></div>
-              </div>
-            `;
-          loadDocuments(c.id);
-        });
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
+          <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
+          <button onclick="uploadPDF('${c.id}')">📄 Upload PDF</button>
+          <button onclick="scanDocument('${c.id}')">📚 Scan / Upload Document</button>
+        </div>
+      </div>
+
+      <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+    </div>
+  `;
+
+  loadDocuments(c.id);
+});
       } catch (error) {
         console.error("Load contractors error:", error);
         div.className = "";
@@ -412,12 +427,12 @@
         `;
       }
     }
-      async function uploadDocument(contractorId) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*,application/pdf";
-  input.capture = "environment";
+function getSelectedDocType(contractorId) {
+  const select = document.getElementById(`doc-type-${contractorId}`);
+  return select ? select.value : "other";
+}
 
+async function handleFileSelection(contractorId, input) {
   input.onchange = async () => {
     const file = input.files[0];
     if (!file) return;
@@ -431,7 +446,7 @@
         body: JSON.stringify({
           contractor_id: contractorId,
           file_name: file.name,
-          document_type: "upload"
+          document_type: getSelectedDocType(contractorId)
         })
       });
 
@@ -451,6 +466,35 @@
   };
 
   input.click();
+}
+
+function takePhoto(contractorId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.capture = "environment";
+  handleFileSelection(contractorId, input);
+}
+
+function chooseFile(contractorId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*,application/pdf";
+  handleFileSelection(contractorId, input);
+}
+
+function uploadPDF(contractorId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/pdf";
+  handleFileSelection(contractorId, input);
+}
+
+function scanDocument(contractorId) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*,application/pdf";
+  handleFileSelection(contractorId, input);
 }
 
 async function loadDocuments(contractorId) {
@@ -475,7 +519,8 @@ async function loadDocuments(contractorId) {
     console.error("Load documents error:", err);
   }
 }
-    loadContractors();
+
+loadContractors();
   </script>
 </body>
 </html>
