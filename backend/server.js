@@ -642,8 +642,13 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'contractor_id and file required' });
     }
 
-    const filePath = `${contractor_id}/${Date.now()}-${file.originalname}`;
+    const now = new Date();
+    const year = String(now.getFullYear());
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const safeDocType = (document_type || 'other').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
 
+    const filePath = `${contractor_id}/${year}/${month}/${safeDocType}/${Date.now()}-${file.originalname}`;
+    
     const { error: uploadError } = await supabase.storage
       .from('contractor-docs')
       .upload(filePath, file.buffer, {
