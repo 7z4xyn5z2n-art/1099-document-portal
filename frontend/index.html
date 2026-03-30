@@ -382,41 +382,41 @@
         div.innerHTML = "";
 
         data.forEach(c => {
-  div.innerHTML += `
-    <div class="contractor-card">
-      <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
+          div.innerHTML += `
+            <div class="contractor-card">
+              <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
 
-      <div class="contractor-meta">
-        <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
-        <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
-        <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
-        <div><span class="meta-label">Contractor ID:</span> ${c.id}</div>
-      </div>
+              <div class="contractor-meta">
+                <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
+                <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
+                <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
+                <div><span class="meta-label">Contractor ID:</span> ${c.id}</div>
+              </div>
 
-      <div style="margin-top:15px;">
-        <div style="margin-bottom:8px;">
-          <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
-            <option value="receipt">Receipt</option>
-            <option value="statement">Bank / Card Statement</option>
-            <option value="invoice">Invoice</option>
-            <option value="other">Other</option>
-          </select>
-        </div>
+              <div style="margin-top:15px;">
+                <div style="margin-bottom:8px;">
+                  <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+                    <option value="receipt">Receipt</option>
+                    <option value="statement">Bank / Card Statement</option>
+                    <option value="invoice">Invoice</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
 
-        <div style="display:flex; flex-wrap:wrap; gap:8px;">
-          <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
-          <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
-          <button onclick="uploadPDF('${c.id}')">📄 Upload PDF</button>
-          <button onclick="scanDocument('${c.id}')">📚 Scan / Upload Document</button>
-        </div>
-      </div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                  <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
+                  <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
+                  <button onclick="uploadPDF('${c.id}')">📄 Upload PDF</button>
+                  <button onclick="scanDocument('${c.id}')">📚 Scan / Upload Document</button>
+                </div>
+              </div>
 
-      <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
-    </div>
-  `;
+              <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+            </div>
+          `;
 
-  loadDocuments(c.id);
-});
+          loadDocuments(c.id);
+        });
       } catch (error) {
         console.error("Load contractors error:", error);
         div.className = "";
@@ -427,130 +427,171 @@
         `;
       }
     }
-function getSelectedDocType(contractorId) {
-  const select = document.getElementById(`doc-type-${contractorId}`);
-  return select ? select.value : "other";
-}
 
-async function handleFileSelection(contractorId, input) {
-  input.onchange = async () => {
-    const file = input.files[0];
-    if (!file) return;
+    function getSelectedDocType(contractorId) {
+      const select = document.getElementById(`doc-type-${contractorId}`);
+      return select ? select.value : "other";
+    }
 
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('contractor_id', contractorId);
-      formData.append('document_type', getSelectedDocType(contractorId));
+    async function handleFileSelection(contractorId, input) {
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
 
-      const res = await fetch(API + "/api/documents", {
-        method: "POST",
-        body: formData
-      });
+        try {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('contractor_id', contractorId);
+          formData.append('document_type', getSelectedDocType(contractorId));
 
-      const data = await res.json();
+          const res = await fetch(API + "/api/documents", {
+            method: "POST",
+            body: formData
+          });
 
-      if (!res.ok) {
-        alert(data.error || "Upload failed");
-        return;
+          const data = await res.json();
+
+          if (!res.ok) {
+            alert(data.error || "Upload failed");
+            return;
+          }
+
+          alert("Document uploaded");
+          loadDocuments(contractorId);
+        } catch (err) {
+          console.error("Upload error:", err);
+          alert("Upload failed");
+        }
+      };
+
+      input.click();
+    }
+
+    function takePhoto(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.capture = "environment";
+      handleFileSelection(contractorId, input);
+    }
+
+    function chooseFile(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      handleFileSelection(contractorId, input);
+    }
+
+    function uploadPDF(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/pdf";
+      handleFileSelection(contractorId, input);
+    }
+
+    function scanDocument(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      handleFileSelection(contractorId, input);
+    }
+
+    async function openDocument(documentId) {
+      try {
+        const res = await fetch(API + "/api/documents/file/" + documentId);
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || "Unable to open document");
+          return;
+        }
+
+        window.open(data.url, "_blank");
+      } catch (err) {
+        console.error("Open document error:", err);
+        alert("Unable to open document");
       }
-
-      alert("Document uploaded");
-      loadDocuments(contractorId);
-    } catch (err) {
-      console.error("Upload error:", err);
-      alert("Upload failed");
-    }
-  };
-
-  input.click();
-}
-
-function takePhoto(contractorId) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.capture = "environment";
-  handleFileSelection(contractorId, input);
-}
-
-function chooseFile(contractorId) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*,application/pdf";
-  handleFileSelection(contractorId, input);
-}
-
-function uploadPDF(contractorId) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "application/pdf";
-  handleFileSelection(contractorId, input);
-}
-
-function scanDocument(contractorId) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*,application/pdf";
-  handleFileSelection(contractorId, input);
-}
-async function openDocument(documentId) {
-  try {
-    const res = await fetch(API + "/api/documents/file/" + documentId);
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.error || "Unable to open document");
-      return;
     }
 
-    window.open(data.url, "_blank");
-  } catch (err) {
-    console.error("Open document error:", err);
-    alert("Unable to open document");
-  }
-}
-async function loadDocuments(contractorId) {
-  try {
-    const res = await fetch(API + "/api/documents/" + contractorId);
-    const data = await res.json();
+    async function updateDocumentStatus(documentId, reviewStatus, contractorId) {
+      try {
+        const res = await fetch(API + "/api/documents/" + documentId + "/review-status", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({
+            review_status: reviewStatus,
+            reviewed_by: "Staff"
+          })
+        });
 
-    const div = document.getElementById("docs-" + contractorId);
-    if (!div) return;
+        const data = await res.json();
 
-    div.innerHTML = "";
+        if (!res.ok) {
+          alert(data.error || "Unable to update status");
+          return;
+        }
 
-    if (!Array.isArray(data) || data.length === 0) {
-      div.innerHTML = `<div style="color:#666;">No documents uploaded yet.</div>`;
-      return;
+        loadDocuments(contractorId);
+      } catch (err) {
+        console.error("Update document status error:", err);
+        alert("Unable to update status");
+      }
     }
 
-    data.forEach(doc => {
-  const date = new Date(doc.created_at).toLocaleDateString();
+    async function loadDocuments(contractorId) {
+      try {
+        const res = await fetch(API + "/api/documents/" + contractorId);
+        const data = await res.json();
 
-  div.innerHTML += `
-    <div style="margin-top:8px; padding:8px; background:#f5f5f5; border-radius:6px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-        <div>
-          <div><b>📄 ${doc.file_name}</b></div>
-          <div style="font-size:12px; color:#555;">
-            Type: ${doc.document_type || "other"}<br>
-            Uploaded: ${date}
-          </div>
-        </div>
-        <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
-          View
-        </button>
-      </div>
-    </div>
-  `;
-});
-  } catch (err) {
-    console.error("Load documents error:", err);
-  }
-}
+        const div = document.getElementById("docs-" + contractorId);
+        if (!div) return;
 
-loadContractors();
+        div.innerHTML = "";
+
+        if (!Array.isArray(data) || data.length === 0) {
+          div.innerHTML = `<div style="color:#666;">No documents uploaded yet.</div>`;
+          return;
+        }
+
+        data.forEach(doc => {
+          const date = new Date(doc.created_at).toLocaleDateString();
+          const status = doc.review_status || "new";
+
+          div.innerHTML += `
+            <div style="margin-top:8px; padding:10px; background:#f5f5f5; border-radius:6px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                <div style="flex:1;">
+                  <div><b>📄 ${doc.file_name}</b></div>
+                  <div style="font-size:12px; color:#555; margin-top:4px;">
+                    Type: ${doc.document_type || "other"}<br>
+                    Uploaded: ${date}<br>
+                    Status: <b>${status}</b>
+                  </div>
+
+                  <div style="margin-top:8px;">
+                    <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')" style="padding:6px; border-radius:6px;">
+                      <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
+                      <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
+                      <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
+                  View
+                </button>
+              </div>
+            </div>
+          `;
+        });
+      } catch (err) {
+        console.error("Load documents error:", err);
+      }
+    }
+
+    loadContractors();
   </script>
 </body>
 </html>
