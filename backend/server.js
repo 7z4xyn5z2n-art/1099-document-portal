@@ -63,12 +63,14 @@ app.get('/setup-v2', async (req, res) => {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+
       ALTER TABLE contractors
         ADD COLUMN IF NOT EXISTS business_name TEXT,
         ADD COLUMN IF NOT EXISTS email TEXT,
         ADD COLUMN IF NOT EXISTS phone TEXT,
         ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active',
         ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();
+
       CREATE TABLE IF NOT EXISTS financial_entries (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         contractor_id UUID REFERENCES contractors(id) ON DELETE CASCADE,
@@ -135,8 +137,16 @@ app.get('/setup-v2', async (req, res) => {
         period_month INT,
         period_year INT,
         notes TEXT,
+        review_status TEXT NOT NULL DEFAULT 'new',
+        reviewed_by TEXT,
+        reviewed_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT NOW()
       );
+
+      ALTER TABLE documents
+        ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'new',
+        ADD COLUMN IF NOT EXISTS reviewed_by TEXT,
+        ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
     `);
 
     res.json({ message: 'Database setup v2 complete (clean)' });
@@ -623,6 +633,7 @@ app.get('/api/reports/:contractorId', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 /*
   DOCUMENT UPLOAD (REAL FILE STORAGE)
 */
@@ -648,7 +659,7 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
     const safeDocType = (document_type || 'other').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
 
     const filePath = `${contractor_id}/${year}/${month}/${safeDocType}/${Date.now()}-${file.originalname}`;
-    
+
     const { error: uploadError } = await supabase.storage
       .from('contractor-docs')
       .upload(filePath, file.buffer, {
@@ -713,6 +724,54 @@ app.get('/api/documents/:contractorId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+/*
+  UPDATE DOCUMENT REVIEW STATUS
+*/
+app.patch('/api/documents/:documentId/review-status', async (req, res) => {
+  try {
+    const { review_status, reviewed_by } = req.body;
+
+    if (!review_status) {
+      return res.status(400).json({ error: 'review_status is required' });
+    }
+
+    const allowed = ['new', 'in_review', 'reviewed'];
+    if (!allowed.includes(review_status)) {
+      return res.status(400).json({ error: 'Invalid review_status' });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE documents
+      SET
+        review_status = $1,
+        reviewed_by = $2,
+        reviewed_at = CASE
+          WHEN $1 = 'reviewed' THEN NOW()
+          ELSE reviewed_at
+        END
+      WHERE id = $3
+      RETURNING *
+      `,
+      [
+        review_status,
+        reviewed_by || 'Staff',
+        req.params.documentId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update review status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /*
   GET TEMP VIEW URL FOR DOCUMENT
 */
@@ -752,6 +811,7 @@ app.get('/api/documents/file/:documentId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
