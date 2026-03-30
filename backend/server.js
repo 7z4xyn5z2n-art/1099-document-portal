@@ -713,7 +713,45 @@ app.get('/api/documents/:contractorId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+/*
+  GET TEMP VIEW URL FOR DOCUMENT
+*/
+app.get('/api/documents/file/:documentId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE id = $1
+      `,
+      [req.params.documentId]
+    );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const doc = result.rows[0];
+
+    const { data, error } = await supabase.storage
+      .from('contractor-docs')
+      .createSignedUrl(doc.storage_reference, 60 * 10);
+
+    if (error) {
+      console.error('Signed URL error:', error);
+      return res.status(500).json({ error: error.message });
+    }
+
+    res.json({
+      url: data.signedUrl,
+      file_name: doc.file_name,
+      document_type: doc.document_type
+    });
+  } catch (err) {
+    console.error('Get file URL error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
