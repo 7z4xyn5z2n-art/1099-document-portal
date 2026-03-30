@@ -438,16 +438,14 @@ async function handleFileSelection(contractorId, input) {
     if (!file) return;
 
     try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('contractor_id', contractorId);
+      formData.append('document_type', getSelectedDocType(contractorId));
+
       const res = await fetch(API + "/api/documents", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          contractor_id: contractorId,
-          file_name: file.name,
-          document_type: getSelectedDocType(contractorId)
-        })
+        body: formData
       });
 
       const data = await res.json();
