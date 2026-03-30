@@ -494,7 +494,22 @@ function scanDocument(contractorId) {
   input.accept = "image/*,application/pdf";
   handleFileSelection(contractorId, input);
 }
+async function openDocument(documentId) {
+  try {
+    const res = await fetch(API + "/api/documents/file/" + documentId);
+    const data = await res.json();
 
+    if (!res.ok) {
+      alert(data.error || "Unable to open document");
+      return;
+    }
+
+    window.open(data.url, "_blank");
+  } catch (err) {
+    console.error("Open document error:", err);
+    alert("Unable to open document");
+  }
+}
 async function loadDocuments(contractorId) {
   try {
     const res = await fetch(API + "/api/documents/" + contractorId);
@@ -511,14 +526,21 @@ async function loadDocuments(contractorId) {
     }
 
     data.forEach(doc => {
-      const date = new Date(doc.created_at).toLocaleDateString();
+  const date = new Date(doc.created_at).toLocaleDateString();
 
   div.innerHTML += `
     <div style="margin-top:8px; padding:8px; background:#f5f5f5; border-radius:6px;">
-      <div><b>📄 ${doc.file_name}</b></div>
-      <div style="font-size:12px; color:#555;">
-        Type: ${doc.document_type || "other"}<br>
-        Uploaded: ${date}
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <div>
+          <div><b>📄 ${doc.file_name}</b></div>
+          <div style="font-size:12px; color:#555;">
+            Type: ${doc.document_type || "other"}<br>
+            Uploaded: ${date}
+          </div>
+        </div>
+        <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
+          View
+        </button>
       </div>
     </div>
   `;
