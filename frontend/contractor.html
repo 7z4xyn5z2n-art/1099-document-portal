@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contractor Portal | 1099 Document Portal</title>
+
+  <style>
+    :root {
+      --red: #c62828;
+      --green: #1b5e20;
+      --green-light: #2e7d32;
+      --yellow: #f4c542;
+      --white: #ffffff;
+      --off-white: #f7f8fa;
+      --gray: #6b7280;
+      --border: #d9dee5;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      --radius: 16px;
+      --text: #18212b;
+      --soft-bg: #f3f6f9;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef3f7 100%);
+      color: var(--text);
+    }
+
+    .topbar {
+      background: linear-gradient(90deg, var(--green) 0%, #6b5b16 45%, var(--red) 100%);
+      color: var(--white);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 34px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .topbar p {
+      margin: 8px 0 0;
+      font-size: 15px;
+      opacity: 0.96;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 28px auto;
+      padding: 0 18px 40px;
+    }
+
+    .hero-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .welcome-title {
+      font-size: 30px;
+      font-weight: 700;
+      margin: 0 0 8px;
+      color: var(--green);
+    }
+
+    .welcome-subtitle {
+      margin: 0;
+      color: #485768;
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .identity-box {
+      background: var(--soft-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+    }
+
+    .identity-box h3 {
+      margin: 0 0 12px;
+      color: var(--red);
+      font-size: 20px;
+    }
+
+    .identity-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 18px;
+      font-size: 14px;
+    }
+
+    .label {
+      font-weight: 700;
+      color: #22313f;
+    }
+
+    .panel-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+    }
+
+    .panel p {
+      margin: 0 0 16px;
+      color: var(--gray);
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .section-title-green {
+      color: var(--green);
+    }
+
+    .section-title-red {
+      color: var(--red);
+    }
+
+    .field-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #304050;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      font-family: inherit;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--green-light);
+      box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.12);
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 13px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.05s ease, opacity 0.2s ease;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .primary-btn {
+      background: var(--yellow);
+      color: #1d1d1d;
+    }
+
+    .secondary-btn {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    .danger-soft-btn {
+      background: #f8ecec;
+      color: var(--red);
+      border: 1px solid #efc6c6;
+    }
+
+    .soft-btn {
+      background: #eef3f7;
+      color: #21313f;
+      border: 1px solid var(--border);
+    }
+
+    .status-box {
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status-box.success {
+      display: block;
+      background: #e9f7ec;
+      color: #1b5e20;
+      border: 1px solid #bfe2c7;
+    }
+
+    .status-box.error {
+      display: block;
+      background: #fdecec;
+      color: var(--red);
+      border: 1px solid #f3c2c2;
+    }
+
+    .status-box.info {
+      display: block;
+      background: #eef5fb;
+      color: #174b73;
+      border: 1px solid #c8ddf1;
+    }
+
+    .doc-group {
+      margin-top: 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .doc-group-header {
+      background: #f6f8fb;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+      color: #243443;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .doc-card {
+      padding: 14px;
+      border-bottom: 1px solid #edf1f5;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    .doc-card:last-child {
+      border-bottom: none;
+    }
+
+    .doc-name {
+      font-weight: 700;
+      margin-bottom: 4px;
+      word-break: break-word;
+    }
+
+    .doc-meta {
+      font-size: 13px;
+      color: #556372;
+      line-height: 1.45;
+    }
+
+    .badge-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .badge {
+      background: #f1f5f9;
+      border: 1px solid #dbe3ea;
+      border-radius: 999px;
+      font-size: 12px;
+      padding: 5px 10px;
+      color: #314253;
+      font-weight: 700;
+    }
+
+    .placeholder-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .placeholder-item {
+      padding: 12px 14px;
+      background: #fafbfc;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      font-size: 14px;
+      color: #4c5d6b;
+    }
+
+    .empty-state {
+      padding: 18px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: #fafbfc;
+      color: var(--gray);
+      text-align: center;
+      margin-top: 12px;
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      font-size: 13px;
+      color: #667584;
+      line-height: 1.5;
+    }
+
+    .full-width {
+      grid-column: 1 / -1;
+    }
+
+    @media (max-width: 980px) {
+      .hero-grid,
+      .panel-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .identity-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .welcome-title {
+        font-size: 27px;
+      }
+
+      .doc-card {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>1099 Contractor Portal</h1>
+    <p>Secure document upload, bookkeeping support, tax preparation workflow, and communication with your preparer.</p>
+  </div>
+
+  <div class="page">
+    <div class="hero-card">
+      <div class="hero-grid">
+        <div>
+          <h2 class="welcome-title" id="welcomeTitle">Welcome to your contractor workspace</h2>
+          <p class="welcome-subtitle">
+            This portal is designed to make it easy for you to send documents, keep track of uploads,
+            review what has already been provided, and stay connected with your bookkeeping and tax preparation team.
+          </p>
+
+          <div class="badge-row">
+            <div class="badge">Secure upload ready</div>
+            <div class="badge">Photos, scans, PDFs, files</div>
+            <div class="badge">Bookkeeping + tax prep</div>
+            <div class="badge">Contractor-specific workspace</div>
+          </div>
+        </div>
+
+        <div class="identity-box">
+          <h3>Your Business Profile</h3>
+          <div class="identity-grid">
+            <div><span class="label">Contractor:</span> <span id="contractorName">Loading...</span></div>
+            <div><span class="label">Business:</span> <span id="businessName">—</span></div>
+            <div><span class="label">Email:</span> <span id="contractorEmail">—</span></div>
+            <div><span class="label">Phone:</span> <span id="contractorPhone">—</span></div>
+            <div><span class="label">Portal Status:</span> <span id="contractorStatus">—</span></div>
+            <div><span class="label">Secure Access:</span> <span id="secureAccessStatus">Setup pending</span></div>
+          </div>
+
+          <div class="footer-note">
+            This page is intended to become your dedicated contractor experience.
+            Secure magic-link or code-based login still needs backend support before this can be fully locked to one contractor.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-grid">
+      <div class="panel">
+        <h2 class="section-title-green">Upload Documents</h2>
+        <p>
+          Send receipts, statements, invoices, tax forms, and other records directly to your preparation team.
+          Use whichever upload option is easiest for you.
+        </p>
+
+        <div class="field-row">
+          <label for="docType">Document Type</label>
+          <select id="docType">
+            <option value="receipt">Receipt</option>
+            <option value="statement">Bank / Card Statement</option>
+            <option value="invoice">Invoice</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="field-row">
+          <label for="uploadNotes">Optional Notes</label>
+          <textarea id="uploadNotes" placeholder="Add any helpful notes for your preparer. Example: March fuel receipts, December bank statement, business supplies, etc."></textarea>
+        </div>
+
+        <div class="actions">
+          <button class="primary-btn" onclick="takePhoto()">📸 Take Photo</button>
+          <button class="secondary-btn" onclick="chooseFile()">📁 Choose File</button>
+          <button class="soft-btn" onclick="uploadPDF()">📄 Upload PDF</button>
+          <button class="soft-btn" onclick="scanDocument()">📚 Scan / Upload Document</button>
+          <button class="danger-soft-btn" onclick="showDriveUploadNotice()">☁️ Google Drive Upload</button>
+        </div>
+
+        <div id="uploadStatus" class="status-box"></div>
+
+        <div class="footer-note">
+          Google Drive upload is prepared in the interface, but it still needs backend or external integration work before it becomes functional.
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title-red">Secure Access & Login</h2>
+        <p>
+          This section prepares the portal for the secure contractor login flow you want to add,
+          such as a magic link, verification code, or invite-based access.
+        </p>
+
+        <div class="field-row">
+          <label for="accessEmail">Email for Secure Access</label>
+          <input id="accessEmail" placeholder="Email tied to your contractor account" />
+        </div>
+
+        <div class="field-row">
+          <label for="accessCode">Access Code</label>
+          <input id="accessCode" placeholder="Enter access code or verification code" />
+        </div>
+
+        <div class="actions">
+          <button class="secondary-btn" onclick="requestMagicLink()">Send Secure Link</button>
+          <button class="soft-btn" onclick="verifyAccessCode()">Verify Access Code</button>
+        </div>
+
+        <div id="accessStatus" class="status-box info"></div>
+
+        <div class="footer-note">
+          These controls are UI-ready, but the actual secure authentication endpoints still need to be added to the backend.
+        </div>
+      </div>
+
+      <div class="panel full-width">
+        <h2 class="section-title-green">My Uploaded Documents</h2>
+        <p>
+          Review what you have already submitted. Documents are grouped by category so it is easy to confirm what has already been uploaded.
+        </p>
+
+        <div id="documentsWrap">
+          <div class="empty-state">Loading uploaded documents...</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title-red">Requested Documents</h2>
+        <p>
+          This area is designed for your preparer to request missing items and help you stay organized.
+        </p>
+
+        <div id="requestedDocuments" class="placeholder-list">
+          <div class="placeholder-item">No live request workflow yet. This section is ready for backend integration.</div>
+          <div class="placeholder-item">Examples: Missing bank statements, mileage logs, 1099 forms, receipts, invoices, prior-year tax documents.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 class="section-title-green">Messages With My Preparer</h2>
+        <p>
+          Keep communication connected to your bookkeeping and tax preparation workflow.
+        </p>
+
+        <div id="messageThread" class="placeholder-list">
+          <div class="placeholder-item">Messaging UI is ready, but live contractor-to-staff messaging still needs backend support.</div>
+        </div>
+
+        <div class="field-row" style="margin-top:14px;">
+          <label for="messageBox">Send Message</label>
+          <textarea id="messageBox" placeholder="Type a message to your tax preparer or bookkeeping team..."></textarea>
+        </div>
+
+        <div class="actions">
+          <button class="secondary-btn" onclick="sendMessagePlaceholder()">Send Message</button>
+        </div>
+
+        <div id="messageStatus" class="status-box"></div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API = "https://one099-document-portal2.onrender.com";
+
+    // For now this page loads one contractor by query string:
+    // contractor.html?contractorId=YOUR_UUID
+    const params = new URLSearchParams(window.location.search);
+    const contractorId = params.get("contractorId");
+
+    function setStatus(id, message, type) {
+      const box = document.getElementById(id);
+      box.className = "status-box " + type;
+      box.textContent = message;
+    }
+
+    function clearStatus(id) {
+      const box = document.getElementById(id);
+      box.className = "status-box";
+      box.textContent = "";
+    }
+
+    function getSelectedDocType() {
+      const select = document.getElementById("docType");
+      return select ? select.value : "other";
+    }
+
+    function getUploadNotes() {
+      return document.getElementById("uploadNotes").value.trim();
+    }
+
+    function formatDate(dateString) {
+      if (!dateString) return "—";
+      return new Date(dateString).toLocaleDateString();
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    async function loadContractorProfile() {
+      if (!contractorId) {
+        document.getElementById("welcomeTitle").textContent = "Secure contractor link required";
+        document.getElementById("contractorName").textContent = "No contractor selected";
+        document.getElementById("documentsWrap").innerHTML = `
+          <div class="empty-state">
+            This page needs a contractor ID in the URL.<br><br>
+            Example:<br>
+            <b>contractor.html?contractorId=YOUR_CONTRACTOR_UUID</b>
+          </div>
+        `;
+        setStatus("accessStatus", "A secure contractor link or login flow still needs to be added to the backend.", "info");
+        return;
+      }
+
+      try {
+        const res = await fetch(API + "/api/contractors/" + contractorId);
+        const data = await res.json();
+
+        if (!res.ok) {
+          document.getElementById("contractorName").textContent = "Unable to load contractor";
+          document.getElementById("documentsWrap").innerHTML = `
+            <div class="empty-state">Could not load contractor profile.</div>
+          `;
+          return;
+        }
+
+        const contractorName = data.contractor_name || "Contractor";
+        const businessName = data.business_name || "Independent Contractor";
+
+        document.getElementById("welcomeTitle").textContent = "Welcome, " + contractorName;
+        document.getElementById("contractorName").textContent = contractorName;
+        document.getElementById("businessName").textContent = businessName;
+        document.getElementById("contractorEmail").textContent = data.email || "—";
+        document.getElementById("contractorPhone").textContent = data.phone || "—";
+        document.getElementById("contractorStatus").textContent = data.status || "active";
+
+        document.getElementById("accessEmail").value = data.email || "";
+      } catch (err) {
+        console.error("Load contractor profile error:", err);
+        document.getElementById("contractorName").textContent = "Unable to load contractor";
+      }
+    }
+
+    async function handleFileSelection(input) {
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+
+        if (!contractorId) {
+          setStatus("uploadStatus", "A contractor ID is required before uploads can be used.", "error");
+          return;
+        }
+
+        try {
+          clearStatus("uploadStatus");
+
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("contractor_id", contractorId);
+          formData.append("document_type", getSelectedDocType());
+          formData.append("notes", getUploadNotes());
+
+          const res = await fetch(API + "/api/documents", {
+            method: "POST",
+            body: formData
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            setStatus("uploadStatus", data.error || "Upload failed.", "error");
+            return;
+          }
+
+          document.getElementById("uploadNotes").value = "";
+          setStatus("uploadStatus", "Document uploaded successfully.", "success");
+          loadDocuments();
+        } catch (err) {
+          console.error("Upload error:", err);
+          setStatus("uploadStatus", "Upload failed. Please try again.", "error");
+        }
+      };
+
+      input.click();
+    }
+
+    function takePhoto() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.capture = "environment";
+      handleFileSelection(input);
+    }
+
+    function chooseFile() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      handleFileSelection(input);
+    }
+
+    function uploadPDF() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/pdf";
+      handleFileSelection(input);
+    }
+
+    function scanDocument() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      handleFileSelection(input);
+    }
+
+    function showDriveUploadNotice() {
+      setStatus(
+        "uploadStatus",
+        "Google Drive upload button is reserved for the future integration. The current backend does not yet support Drive import.",
+        "info"
+      );
+    }
+
+    async function openDocument(documentId) {
+      try {
+        const res = await fetch(API + "/api/documents/file/" + documentId);
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || "Unable to open document");
+          return;
+        }
+
+        window.open(data.url, "_blank");
+      } catch (err) {
+        console.error("Open document error:", err);
+        alert("Unable to open document");
+      }
+    }
+
+    function groupDocumentsByType(documents) {
+      const groups = {
+        receipt: [],
+        statement: [],
+        invoice: [],
+        other: []
+      };
+
+      documents.forEach(doc => {
+        const type = (doc.document_type || "other").toLowerCase();
+        if (groups[type]) {
+          groups[type].push(doc);
+        } else {
+          groups.other.push(doc);
+        }
+      });
+
+      return groups;
+    }
+
+    function renderDocumentGroup(title, docs) {
+      if (!docs.length) {
+        return `
+          <div class="doc-group">
+            <div class="doc-group-header">
+              <span>${title}</span>
+              <span>0 files</span>
+            </div>
+            <div class="empty-state" style="margin:0; border:none; border-radius:0;">No files uploaded in this category yet.</div>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="doc-group">
+          <div class="doc-group-header">
+            <span>${title}</span>
+            <span>${docs.length} file${docs.length === 1 ? "" : "s"}</span>
+          </div>
+          ${docs.map(doc => `
+            <div class="doc-card">
+              <div>
+                <div class="doc-name">📄 ${escapeHtml(doc.file_name)}</div>
+                <div class="doc-meta">
+                  Uploaded: ${formatDate(doc.created_at)}<br>
+                  Type: ${escapeHtml(doc.document_type || "other")}<br>
+                  Status: ${escapeHtml(doc.review_status || "new")}<br>
+                  Notes: ${escapeHtml(doc.notes || "—")}
+                </div>
+              </div>
+              <div>
+                <button class="secondary-btn" onclick="openDocument('${doc.id}')">View</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    async function loadDocuments() {
+      const wrap = document.getElementById("documentsWrap");
+
+      if (!contractorId) {
+        wrap.innerHTML = `<div class="empty-state">No contractor selected.</div>`;
+        return;
+      }
+
+      try {
+        const res = await fetch(API + "/api/documents/" + contractorId);
+        const data = await res.json();
+
+        if (!res.ok) {
+          wrap.innerHTML = `<div class="empty-state">Unable to load documents.</div>`;
+          return;
+        }
+
+        if (!Array.isArray(data) || data.length === 0) {
+          wrap.innerHTML = `
+            <div class="empty-state">
+              No documents uploaded yet.<br><br>
+              Use the upload section above to send receipts, statements, invoices, and other records.
+            </div>
+          `;
+          return;
+        }
+
+        const groups = groupDocumentsByType(data);
+
+        wrap.innerHTML = `
+          ${renderDocumentGroup("Receipts", groups.receipt)}
+          ${renderDocumentGroup("Bank / Card Statements", groups.statement)}
+          ${renderDocumentGroup("Invoices", groups.invoice)}
+          ${renderDocumentGroup("Other Documents", groups.other)}
+        `;
+      } catch (err) {
+        console.error("Load documents error:", err);
+        wrap.innerHTML = `<div class="empty-state">Could not load documents.</div>`;
+      }
+    }
+
+    function requestMagicLink() {
+      const email = document.getElementById("accessEmail").value.trim();
+
+      if (!email) {
+        setStatus("accessStatus", "Enter your email first.", "error");
+        return;
+      }
+
+      setStatus(
+        "accessStatus",
+        "Magic-link login UI is ready, but your backend still needs an auth route to send secure contractor access links.",
+        "info"
+      );
+    }
+
+    function verifyAccessCode() {
+      const code = document.getElementById("accessCode").value.trim();
+
+      if (!code) {
+        setStatus("accessStatus", "Enter your access code first.", "error");
+        return;
+      }
+
+      setStatus(
+        "accessStatus",
+        "Access-code verification UI is ready, but the backend verification route still needs to be built.",
+        "info"
+      );
+    }
+
+    function sendMessagePlaceholder() {
+      const msg = document.getElementById("messageBox").value.trim();
+
+      if (!msg) {
+        setStatus("messageStatus", "Please enter a message first.", "error");
+        return;
+      }
+
+      setStatus(
+        "messageStatus",
+        "Messaging UI is ready, but live two-way contractor/preparer messaging still needs backend support.",
+        "info"
+      );
+    }
+
+    loadContractorProfile();
+    loadDocuments();
+  </script>
+</body>
+</html>
