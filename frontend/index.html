@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>1099 Document Portal</title>
+  <title>1099 Staff Portal</title>
 
   <style>
     :root {
@@ -17,6 +17,10 @@
       --border: #d9dee5;
       --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
       --radius: 14px;
+      --blue: #1e5aa8;
+      --blue-light: #eaf2fd;
+      --soft-red: #fff3f3;
+      --soft-green: #eef8f0;
     }
 
     * {
@@ -31,7 +35,7 @@
     }
 
     .topbar {
-      background: linear-gradient(90deg, var(--green) 0%, var(--red) 100%);
+      background: linear-gradient(90deg, var(--green) 0%, #6c5d15 45%, var(--red) 100%);
       color: var(--white);
       padding: 18px 28px;
       box-shadow: var(--shadow);
@@ -51,7 +55,7 @@
     }
 
     .page {
-      max-width: 1100px;
+      max-width: 1180px;
       margin: 28px auto;
       padding: 0 20px 40px;
     }
@@ -128,7 +132,7 @@
       font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      transition: transform 0.05s ease, opacity 0.2s ease;
+      transition: transform 0.05s ease, opacity 0.2s ease, background 0.2s ease;
     }
 
     button:active {
@@ -143,6 +147,17 @@
     .secondary-btn {
       background: var(--green);
       color: var(--white);
+    }
+
+    .portal-btn {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .soft-btn {
+      background: #eef3f7;
+      color: #22313f;
+      border: 1px solid var(--border);
     }
 
     .status {
@@ -165,6 +180,13 @@
       background: #fdecec;
       color: var(--red);
       border: 1px solid #f3c2c2;
+    }
+
+    .status.info {
+      display: block;
+      background: #eef5fb;
+      color: #174b73;
+      border: 1px solid #c8ddf1;
     }
 
     .list-header {
@@ -204,11 +226,25 @@
       margin-bottom: 14px;
     }
 
+    .contractor-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
     .contractor-name {
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 700;
       color: #1f2d3a;
       margin-bottom: 8px;
+    }
+
+    .contractor-subtext {
+      font-size: 13px;
+      color: #5b6978;
+      margin-top: -3px;
     }
 
     .contractor-meta {
@@ -217,6 +253,7 @@
       gap: 8px 18px;
       font-size: 14px;
       color: #425466;
+      margin-top: 12px;
     }
 
     .meta-label {
@@ -224,9 +261,79 @@
       color: #22313f;
     }
 
+    .card-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .mini-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      background: var(--blue-light);
+      color: #21476f;
+      border: 1px solid #cddcf2;
+    }
+
+    .section-block {
+      margin-top: 15px;
+      padding-top: 14px;
+      border-top: 1px solid #edf1f5;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #243443;
+      margin-bottom: 10px;
+    }
+
     .loading {
       color: var(--gray);
       font-size: 14px;
+    }
+
+    .doc-card {
+      margin-top: 8px;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+
+    .doc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .doc-meta {
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+      line-height: 1.45;
+    }
+
+    .portal-link-row {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: var(--soft-green);
+      border: 1px solid #cae6d0;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #20462a;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background: #f1f5f9;
+      color: #243443;
+      border: 1px solid #dbe3ea;
+      padding: 8px 12px;
+      font-size: 13px;
     }
 
     @media (max-width: 900px) {
@@ -241,13 +348,25 @@
       .contractor-meta {
         grid-template-columns: 1fr;
       }
+
+      .doc-row {
+        flex-direction: column;
+      }
+
+      .contractor-header {
+        flex-direction: column;
+      }
+
+      .card-toolbar {
+        justify-content: flex-start;
+      }
     }
   </style>
 </head>
 <body>
   <div class="topbar">
-    <h1>1099 Document Portal</h1>
-    <p>Contractor intake, document collection, review workflow, and P&amp;L preparation.</p>
+    <h1>1099 Staff Portal</h1>
+    <p>Internal contractor management, document collection, review workflow, and contractor portal access.</p>
   </div>
 
   <div class="page">
@@ -279,13 +398,17 @@
         </div>
 
         <div id="statusBox" class="status"></div>
+
+        <div class="mini-note">
+          This page is your internal staff workspace. Contractors should use the separate <b>contractor portal</b>, not this staff screen.
+        </div>
       </div>
 
       <div class="panel">
         <div class="list-header">
           <div>
             <h2>Contractors</h2>
-            <div class="muted">This list is loaded directly from your Render/Postgres backend.</div>
+            <div class="muted">Manage contractor records, documents, review statuses, and direct portal access from one place.</div>
           </div>
         </div>
 
@@ -307,6 +430,42 @@
       const box = document.getElementById("statusBox");
       box.className = "status";
       box.textContent = "";
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function getContractorPortalUrl(contractorId) {
+      return "contractor.html?contractorId=" + contractorId;
+    }
+
+    function openContractorPortal(contractorId) {
+      const url = getContractorPortalUrl(contractorId);
+      window.open(url, "_blank");
+    }
+
+    async function copyContractorPortalLink(contractorId) {
+      const url = window.location.origin +
+        window.location.pathname.replace("index.html", "contractor.html").replace(/\/$/, "/") +
+        (window.location.pathname.endsWith("/") ? "" : "").replace("", "");
+
+      const fullUrl = window.location.origin +
+        window.location.pathname.replace(/index\.html$/, "") +
+        "contractor.html?contractorId=" + contractorId;
+
+      try {
+        await navigator.clipboard.writeText(fullUrl);
+        alert("Contractor portal link copied");
+      } catch (err) {
+        console.error("Copy portal link error:", err);
+        alert("Unable to copy portal link");
+      }
     }
 
     async function createContractor() {
@@ -382,18 +541,37 @@
         div.innerHTML = "";
 
         data.forEach(c => {
+          const portalLink = "contractor.html?contractorId=" + c.id;
+
           div.innerHTML += `
             <div class="contractor-card">
-              <div class="contractor-name">${c.contractor_name || "Unnamed Contractor"}</div>
+              <div class="contractor-header">
+                <div>
+                  <div class="contractor-name">${escapeHtml(c.contractor_name || "Unnamed Contractor")}</div>
+                  <div class="contractor-subtext">Internal staff workspace for uploads, review, and contractor portal launching.</div>
+                </div>
 
-              <div class="contractor-meta">
-                <div><span class="meta-label">Email:</span> ${c.email || "—"}</div>
-                <div><span class="meta-label">Phone:</span> ${c.phone || "—"}</div>
-                <div><span class="meta-label">Status:</span> ${c.status || "active"}</div>
-                <div><span class="meta-label">Contractor ID:</span> ${c.id}</div>
+                <div class="card-toolbar">
+                  <button class="portal-btn" onclick="openContractorPortal('${c.id}')">Open Contractor Portal</button>
+                  <button class="copy-btn" onclick="copyContractorPortalLink('${c.id}')">Copy Portal Link</button>
+                </div>
               </div>
 
-              <div style="margin-top:15px;">
+              <div class="contractor-meta">
+                <div><span class="meta-label">Email:</span> ${escapeHtml(c.email || "—")}</div>
+                <div><span class="meta-label">Phone:</span> ${escapeHtml(c.phone || "—")}</div>
+                <div><span class="meta-label">Status:</span> ${escapeHtml(c.status || "active")}</div>
+                <div><span class="meta-label">Contractor ID:</span> ${escapeHtml(c.id)}</div>
+              </div>
+
+              <div class="portal-link-row">
+                <span class="meta-label">Portal URL:</span><br>
+                ${escapeHtml(portalLink)}
+              </div>
+
+              <div class="section-block">
+                <div class="section-title">Upload On Behalf Of Contractor</div>
+
                 <div style="margin-bottom:8px;">
                   <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
                     <option value="receipt">Receipt</option>
@@ -411,7 +589,10 @@
                 </div>
               </div>
 
-              <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+              <div class="section-block">
+                <div class="section-title">Documents & Review Status</div>
+                <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+              </div>
             </div>
           `;
 
@@ -440,9 +621,9 @@
 
         try {
           const formData = new FormData();
-          formData.append('file', file);
-          formData.append('contractor_id', contractorId);
-          formData.append('document_type', getSelectedDocType(contractorId));
+          formData.append("file", file);
+          formData.append("contractor_id", contractorId);
+          formData.append("document_type", getSelectedDocType(contractorId));
 
           const res = await fetch(API + "/api/documents", {
             method: "POST",
@@ -560,14 +741,14 @@
           const status = doc.review_status || "new";
 
           div.innerHTML += `
-            <div style="margin-top:8px; padding:10px; background:#f5f5f5; border-radius:6px;">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <div class="doc-card">
+              <div class="doc-row">
                 <div style="flex:1;">
-                  <div><b>📄 ${doc.file_name}</b></div>
-                  <div style="font-size:12px; color:#555; margin-top:4px;">
-                    Type: ${doc.document_type || "other"}<br>
-                    Uploaded: ${date}<br>
-                    Status: <b>${status}</b>
+                  <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
+                  <div class="doc-meta">
+                    Type: ${escapeHtml(doc.document_type || "other")}<br>
+                    Uploaded: ${escapeHtml(date)}<br>
+                    Status: <b>${escapeHtml(status)}</b>
                   </div>
 
                   <div style="margin-top:8px;">
