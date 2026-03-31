@@ -408,10 +408,20 @@
         <div class="list-header">
           <div>
             <h2>Contractors</h2>
-            <div class="muted">Manage contractor records, documents, review statuses, and direct portal access from one place.</div>
-          </div>
+            <div class="muted">
+              Manage contractor records, documents, review statuses, and direct portal access from one place.
+            </div>
         </div>
 
+        <div style="margin-bottom:12px;">
+            <input 
+              id="searchInput"
+              placeholder="Search by name, email, phone..."
+              style="width:100%; padding:12px; border-radius:10px; border:1px solid #d9dee5;"
+              oninput="filterContractors()"
+            />
+          </div>
+        </div>
         <div id="contractors" class="loading">Loading contractors...</div>
       </div>
     </div>
@@ -419,7 +429,7 @@
 
   <script>
     const API = "https://one099-document-portal2.onrender.com";
-
+      let allContractors = [];
     function showStatus(message, type) {
       const box = document.getElementById("statusBox");
       box.className = "status " + type;
@@ -513,102 +523,32 @@
     }
 
     async function loadContractors() {
-      const div = document.getElementById("contractors");
-      div.className = "loading";
-      div.textContent = "Loading contractors...";
+  const div = document.getElementById("contractors");
+  div.className = "loading";
+  div.textContent = "Loading contractors...";
 
-      try {
-        const res = await fetch(API + "/api/contractors");
-        const data = await res.json();
+  try {
+    const res = await fetch(API + "/api/contractors");
+    const data = await res.json();
 
-        if (!res.ok) {
-          div.className = "";
-          div.innerHTML = `<div class="contractors-empty">Failed to load contractors.</div>`;
-          return;
-        }
-
-        if (!Array.isArray(data) || data.length === 0) {
-          div.className = "";
-          div.innerHTML = `
-            <div class="contractors-empty">
-              No contractors yet. Create your first contractor using the form on the left.
-            </div>
-          `;
-          return;
-        }
-
-        div.className = "";
-        div.innerHTML = "";
-
-        data.forEach(c => {
-          const portalLink = "contractor.html?contractorId=" + c.id;
-
-          div.innerHTML += `
-            <div class="contractor-card">
-              <div class="contractor-header">
-                <div>
-                  <div class="contractor-name">${escapeHtml(c.contractor_name || "Unnamed Contractor")}</div>
-                  <div class="contractor-subtext">Internal staff workspace for uploads, review, and contractor portal launching.</div>
-                </div>
-
-                <div class="card-toolbar">
-                  <button class="portal-btn" onclick="openContractorPortal('${c.id}')">Open Contractor Portal</button>
-                  <button class="copy-btn" onclick="copyContractorPortalLink('${c.id}')">Copy Portal Link</button>
-                </div>
-              </div>
-
-              <div class="contractor-meta">
-                <div><span class="meta-label">Email:</span> ${escapeHtml(c.email || "—")}</div>
-                <div><span class="meta-label">Phone:</span> ${escapeHtml(c.phone || "—")}</div>
-                <div><span class="meta-label">Status:</span> ${escapeHtml(c.status || "active")}</div>
-                <div><span class="meta-label">Contractor ID:</span> ${escapeHtml(c.id)}</div>
-              </div>
-
-              <div class="portal-link-row">
-                <span class="meta-label">Portal URL:</span><br>
-                ${escapeHtml(portalLink)}
-              </div>
-
-              <div class="section-block">
-                <div class="section-title">Upload On Behalf Of Contractor</div>
-
-                <div style="margin-bottom:8px;">
-                  <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
-                    <option value="receipt">Receipt</option>
-                    <option value="statement">Bank / Card Statement</option>
-                    <option value="invoice">Invoice</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-
-                <div style="display:flex; flex-wrap:wrap; gap:8px;">
-                  <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
-                  <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
-                  <button onclick="uploadPDF('${c.id}')">📄 Upload PDF</button>
-                  <button onclick="scanDocument('${c.id}')">📚 Scan / Upload Document</button>
-                </div>
-              </div>
-
-              <div class="section-block">
-                <div class="section-title">Documents & Review Status</div>
-                <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
-              </div>
-            </div>
-          `;
-
-          loadDocuments(c.id);
-        });
-      } catch (error) {
-        console.error("Load contractors error:", error);
-        div.className = "";
-        div.innerHTML = `
-          <div class="contractors-empty">
-            Could not connect to the backend. Open the browser console and check the network request.
-          </div>
-        `;
-      }
+    if (!res.ok) {
+      div.className = "";
+      div.innerHTML = `<div class="contractors-empty">Failed to load contractors.</div>`;
+      return;
     }
 
+    allContractors = data;
+    renderContractors(data);
+     } catch (error) {
+    console.error("Load contractors error:", error);
+    div.className = "";
+    div.innerHTML = `
+      <div class="contractors-empty">
+        Could not connect to the backend.
+      </div>
+    `;
+  }
+}
     function getSelectedDocType(contractorId) {
       const select = document.getElementById(`doc-type-${contractorId}`);
       return select ? select.value : "other";
@@ -771,8 +711,96 @@
         console.error("Load documents error:", err);
       }
     }
+function renderContractors(data) {
+  const div = document.getElementById("contractors");
+  div.className = "";
+  div.innerHTML = "";
 
-    loadContractors();
+  if (!Array.isArray(data) || data.length === 0) {
+    div.innerHTML = `
+      <div class="contractors-empty">
+        No contractors found.
+      </div>
+    `;
+    return;
+  }
+
+  data.forEach(c => {
+    const portalLink = "contractor.html?contractorId=" + c.id;
+
+    div.innerHTML += `
+      <div class="contractor-card">
+        <div class="contractor-header">
+          <div>
+            <div class="contractor-name">${escapeHtml(c.contractor_name || "Unnamed Contractor")}</div>
+            <div class="contractor-subtext">Internal staff workspace for uploads, review, and contractor portal launching.</div>
+          </div>
+
+          <div class="card-toolbar">
+            <button class="portal-btn" onclick="openContractorPortal('${c.id}')">Open Contractor Portal</button>
+            <button class="copy-btn" onclick="copyContractorPortalLink('${c.id}')">Copy Portal Link</button>
+          </div>
+        </div>
+
+        <div class="contractor-meta">
+          <div><span class="meta-label">Email:</span> ${escapeHtml(c.email || "—")}</div>
+          <div><span class="meta-label">Phone:</span> ${escapeHtml(c.phone || "—")}</div>
+          <div><span class="meta-label">Status:</span> ${escapeHtml(c.status || "active")}</div>
+          <div><span class="meta-label">Contractor ID:</span> ${escapeHtml(c.id)}</div>
+        </div>
+
+        <div class="portal-link-row">
+          <span class="meta-label">Portal URL:</span><br>
+          ${escapeHtml(portalLink)}
+        </div>
+
+        <div class="section-block">
+          <div class="section-title">Upload On Behalf Of Contractor</div>
+
+          <div style="margin-bottom:8px;">
+            <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+              <option value="receipt">Receipt</option>
+              <option value="statement">Bank / Card Statement</option>
+              <option value="invoice">Invoice</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
+            <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
+            <button onclick="uploadPDF('${c.id}')">📄 Upload PDF</button>
+            <button onclick="scanDocument('${c.id}')">📚 Scan / Upload Document</button>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div class="section-title">Documents & Review Status</div>
+          <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+        </div>
+      </div>
+    `;
+
+    loadDocuments(c.id);
+  });
+}
+
+function filterContractors() {
+  const query = document.getElementById("searchInput").value.toLowerCase();
+
+  const filtered = allContractors.filter(c => {
+    return (
+      (c.contractor_name || "").toLowerCase().includes(query) ||
+      (c.email || "").toLowerCase().includes(query) ||
+      (c.phone || "").toLowerCase().includes(query) ||
+      (c.status || "").toLowerCase().includes(query)
+    );
+  });
+
+  renderContractors(filtered);
+}
+
+loadContractors();
   </script>
 </body>
 </html>
