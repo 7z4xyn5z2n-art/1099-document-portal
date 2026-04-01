@@ -833,6 +833,47 @@ app.get('/api/documents/:contractorId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.get('/api/contractor-portal/documents', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ error: 'token is required' });
+    }
+
+    const tokenResult = await pool.query(
+      `
+      SELECT contractor_id
+      FROM contractor_access_tokens
+      WHERE access_token = $1
+        AND is_active = true
+        AND expires_at > NOW()
+      `,
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const contractorId = tokenResult.rows[0].contractor_id;
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE contractor_id = $1
+      ORDER BY created_at DESC
+      `,
+      [contractorId]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Contractor portal documents error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 /*
   UPDATE DOCUMENT REVIEW STATUS
