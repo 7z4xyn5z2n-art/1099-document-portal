@@ -701,7 +701,34 @@
         alert("Unable to update status");
       }
     }
+    async function updateDocumentMeta(documentId, documentType, periodMonth, periodYear, contractorId) {
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        document_type: documentType || undefined,
+        period_month: periodMonth || undefined,
+        period_year: periodYear || undefined
+      })
+    });
 
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to update document");
+      return;
+    }
+
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Update document meta error:", err);
+    alert("Update failed");
+  }
+}
+    
     async function loadDocuments(contractorId) {
       try {
         const res = await fetch(API + "/api/documents/" + contractorId);
@@ -720,33 +747,58 @@
         data.forEach(doc => {
           const date = new Date(doc.created_at).toLocaleDateString();
           const status = doc.review_status || "new";
-
+          const periodMonth = doc.period_month || "";
+          const periodYear = doc.period_year || "";
+          const docType = doc.document_type || "other";
+          const notes = doc.notes || "";
+          
           div.innerHTML += `
-            <div class="doc-card">
-              <div class="doc-row">
-                <div style="flex:1;">
-                  <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
-                  <div class="doc-meta">
-                    Type: ${escapeHtml(doc.document_type || "other")}<br>
-                    Uploaded: ${escapeHtml(date)}<br>
-                    Status: <b>${escapeHtml(status)}</b>
-                  </div>
+  <div class="doc-card">
+    <div class="doc-row">
+      <div style="flex:1;">
+        <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
+        <div class="doc-meta">
+          Type: ${escapeHtml(doc.document_type || "other")}<br>
+          Uploaded: ${escapeHtml(date)}<br>
+          Status: <b>${escapeHtml(status)}</b>
+        </div>
 
-                  <div style="margin-top:8px;">
-                    <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')" style="padding:6px; border-radius:6px;">
-                      <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
-                      <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
-                      <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
-                    </select>
-                  </div>
-                </div>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+          <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')" style="padding:6px; border-radius:6px;">
+            <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
+            <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
+            <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+          </select>
 
-                <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
-                  View
-                </button>
-              </div>
-            </div>
-          `;
+          <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')" style="padding:6px; border-radius:6px;">
+            <option value="receipt" ${docType === 'receipt' ? 'selected' : ''}>Receipt</option>
+            <option value="statement" ${docType === 'statement' ? 'selected' : ''}>Statement</option>
+            <option value="invoice" ${docType === 'invoice' ? 'selected' : ''}>Invoice</option>
+            <option value="other" ${docType === 'other' ? 'selected' : ''}>Other</option>
+          </select>
+
+          <input
+            value="${periodMonth}"
+            placeholder="Month"
+            style="width:60px; padding:6px;"
+            onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
+          />
+
+          <input
+            value="${periodYear}"
+            placeholder="Year"
+            style="width:80px; padding:6px;"
+            onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
+          />
+        </div>
+      </div>
+
+      <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
+        View
+      </button>
+    </div>
+  </div>
+`;
         });
       } catch (err) {
         console.error("Load documents error:", err);
