@@ -532,16 +532,16 @@
   <script>
     const API = "https://one099-document-portal2.onrender.com";
 
-    // For now this page loads one contractor by query string:
-    // contractor.html?contractorId=YOUR_UUID
-    const params = new URLSearchParams(window.location.search);
-    const contractorId = params.get("contractorId");
+    // Secure contractor portal access now uses a token:
+const params = new URLSearchParams(window.location.search);
+const token = params.get("token");
+let contractorId = null;
 
-    function setStatus(id, message, type) {
-      const box = document.getElementById(id);
-      box.className = "status-box " + type;
-      box.textContent = message;
-    }
+function setStatus(id, message, type) {
+  const box = document.getElementById(id);
+  box.className = "status-box " + type;
+  box.textContent = message;
+}
 
     function clearStatus(id) {
       const box = document.getElementById(id);
@@ -573,48 +573,58 @@
     }
 
     async function loadContractorProfile() {
-      if (!contractorId) {
-        document.getElementById("welcomeTitle").textContent = "Secure contractor link required";
-        document.getElementById("contractorName").textContent = "No contractor selected";
-        document.getElementById("documentsWrap").innerHTML = `
-          <div class="empty-state">
-            This page needs a contractor ID in the URL.<br><br>
-            Example:<br>
-            <b>contractor.html?contractorId=YOUR_CONTRACTOR_UUID</b>
-          </div>
-        `;
-        setStatus("accessStatus", "A secure contractor link or login flow still needs to be added to the backend.", "info");
-        return;
-      }
+  if (!token) {
+    document.getElementById("welcomeTitle").textContent = "Secure contractor link required";
+    document.getElementById("contractorName").textContent = "No access token provided";
+    document.getElementById("documentsWrap").innerHTML = `
+      <div class="empty-state">
+        This page needs a secure access token in the URL.<br><br>
+        Example:<br>
+        <b>contractor.html?token=YOUR_SECURE_ACCESS_TOKEN</b>
+      </div>
+    `;
+    setStatus("accessStatus", "A valid secure access link is required.", "error");
+    return;
+  }
 
-      try {
-        const res = await fetch(API + "/api/contractors/" + contractorId);
-        const data = await res.json();
+  try {
+    const res = await fetch(API + "/api/contractor-portal/session?token=" + encodeURIComponent(token));
+    const data = await res.json();
 
-        if (!res.ok) {
-          document.getElementById("contractorName").textContent = "Unable to load contractor";
-          document.getElementById("documentsWrap").innerHTML = `
-            <div class="empty-state">Could not load contractor profile.</div>
-          `;
-          return;
-        }
-
-        const contractorName = data.contractor_name || "Contractor";
-        const businessName = data.business_name || "Independent Contractor";
-
-        document.getElementById("welcomeTitle").textContent = "Welcome, " + contractorName;
-        document.getElementById("contractorName").textContent = contractorName;
-        document.getElementById("businessName").textContent = businessName;
-        document.getElementById("contractorEmail").textContent = data.email || "—";
-        document.getElementById("contractorPhone").textContent = data.phone || "—";
-        document.getElementById("contractorStatus").textContent = data.status || "active";
-
-        document.getElementById("accessEmail").value = data.email || "";
-      } catch (err) {
-        console.error("Load contractor profile error:", err);
-        document.getElementById("contractorName").textContent = "Unable to load contractor";
-      }
+    if (!res.ok) {
+      document.getElementById("welcomeTitle").textContent = "Secure contractor link required";
+      document.getElementById("contractorName").textContent = "Invalid or expired access link";
+      document.getElementById("documentsWrap").innerHTML = `
+        <div class="empty-state">This secure link is invalid or has expired.</div>
+      `;
+      setStatus("accessStatus", data.error || "Invalid or expired access link.", "error");
+      return;
     }
+
+    contractorId = data.contractor_id;
+
+    const contractorName = data.contractor_name || "Contractor";
+    const businessName = data.business_name || "Independent Contractor";
+
+    document.getElementById("welcomeTitle").textContent = "Welcome, " + contractorName;
+    document.getElementById("contractorName").textContent = contractorName;
+    document.getElementById("businessName").textContent = businessName;
+    document.getElementById("contractorEmail").textContent = data.email || "—";
+    document.getElementById("contractorPhone").textContent = data.phone || "—";
+    document.getElementById("contractorStatus").textContent = data.status || "active";
+    document.getElementById("secureAccessStatus").textContent = "Secure link active";
+
+    document.getElementById("accessEmail").value = data.email || "";
+    clearStatus("accessStatus");
+  } catch (err) {
+    console.error("Load contractor profile error:", err);
+    document.getElementById("contractorName").textContent = "Unable to load contractor";
+    document.getElementById("documentsWrap").innerHTML = `
+      <div class="empty-state">Could not load contractor profile.</div>
+    `;
+    setStatus("accessStatus", "Failed to load contractor session.", "error");
+  }
+}
 
     async function handleFileSelection(input) {
       input.onchange = async () => {
@@ -629,16 +639,16 @@
         try {
           clearStatus("uploadStatus");
 
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("contractor_id", contractorId);
-          formData.append("document_type", getSelectedDocType());
-          formData.append("notes", getUploadNotes());
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("token", token);
+            formData.append("document_type", getSelectedDocType());
+            formData.append("notes", getUploadNotes());
 
-          const res = await fetch(API + "/api/documents", {
-            method: "POST",
-            body: formData
-          });
+            const res = await fetch(API + "/api/contractor-portal/documents", {
+              method: "POST",
+              body: formData
+            });
 
           const data = await res.json();
 
@@ -698,7 +708,7 @@
 
     async function openDocument(documentId) {
       try {
-        const res = await fetch(API + "/api/documents/file/" + documentId);
+        const res = await fetch(API + "/api/contractor-portal/file/" + documentId + "?token=" + encodeURIComponent(token));
         const data = await res.json();
 
         if (!res.ok) {
@@ -781,8 +791,8 @@
       }
 
       try {
-        const res = await fetch(API + "/api/documents/" + contractorId);
-        const data = await res.json();
+          const res = await fetch(API + "/api/contractor-portal/documents?token=" + encodeURIComponent(token));
+          const data = await res.json();
 
         if (!res.ok) {
           wrap.innerHTML = `<div class="empty-state">Unable to load documents.</div>`;
