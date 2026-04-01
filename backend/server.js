@@ -924,6 +924,40 @@ app.patch('/api/documents/:documentId/review-status', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.patch('/api/documents/:documentId', async (req, res) => {
+  try {
+    const { document_type, period_month, period_year, notes } = req.body;
+
+    const result = await pool.query(
+      `
+      UPDATE documents
+      SET
+        document_type = COALESCE($1, document_type),
+        period_month = COALESCE($2, period_month),
+        period_year = COALESCE($3, period_year),
+        notes = COALESCE($4, notes)
+      WHERE id = $5
+      RETURNING *
+      `,
+      [
+        document_type ?? null,
+        period_month ?? null,
+        period_year ?? null,
+        notes ?? null,
+        req.params.documentId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update document metadata error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /*
   GET TEMP VIEW URL FOR DOCUMENT
