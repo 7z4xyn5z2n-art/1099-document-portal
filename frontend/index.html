@@ -759,6 +759,7 @@
         <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
         <div class="doc-meta">
           Type: ${escapeHtml(doc.document_type || "other")}<br>
+          Period: ${escapeHtml(doc.period_month || "—")}/${escapeHtml(doc.period_year || "—")}<br>
           Uploaded: ${escapeHtml(date)}<br>
           Status: <b>${escapeHtml(status)}</b>
         </div>
