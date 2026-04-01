@@ -482,22 +482,31 @@
 }
 
     async function copyContractorPortalLink(contractorId) {
-      const url = window.location.origin +
-        window.location.pathname.replace("index.html", "contractor.html").replace(/\/$/, "/") +
-        (window.location.pathname.endsWith("/") ? "" : "").replace("", "");
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId + "/access-link", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        created_by: "Staff"
+      })
+    });
 
-      const fullUrl = window.location.origin +
-        window.location.pathname.replace(/index\.html$/, "") +
-        "contractor.html?contractorId=" + contractorId;
+    const data = await res.json();
 
-      try {
-        await navigator.clipboard.writeText(fullUrl);
-        alert("Contractor portal link copied");
-      } catch (err) {
-        console.error("Copy portal link error:", err);
-        alert("Unable to copy portal link");
-      }
+    if (!res.ok) {
+      alert(data.error || "Unable to generate secure portal link");
+      return;
     }
+
+    await navigator.clipboard.writeText(data.portal_url);
+    alert("Secure contractor portal link copied");
+  } catch (err) {
+    console.error("Copy portal link error:", err);
+    alert("Unable to copy portal link");
+  }
+}
 
     async function createContractor() {
       const name = document.getElementById("name").value.trim();
