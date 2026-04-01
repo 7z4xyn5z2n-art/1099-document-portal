@@ -616,6 +616,7 @@ function setStatus(id, message, type) {
 
     document.getElementById("accessEmail").value = data.email || "";
     clearStatus("accessStatus");
+    loadDocuments();
   } catch (err) {
     console.error("Load contractor profile error:", err);
     document.getElementById("contractorName").textContent = "Unable to load contractor";
@@ -785,8 +786,8 @@ function setStatus(id, message, type) {
     async function loadDocuments() {
       const wrap = document.getElementById("documentsWrap");
 
-      if (!contractorId) {
-        wrap.innerHTML = `<div class="empty-state">No contractor selected.</div>`;
+      if (!token) {
+        wrap.innerHTML = `<div class="empty-state">Secure access required.</div>`;
         return;
       }
 
