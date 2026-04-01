@@ -595,6 +595,17 @@
           formData.append("contractor_id", contractorId);
           formData.append("document_type", getSelectedDocType(contractorId));
 
+          const periodMonthInput = document.getElementById(`period-month-${contractorId}`);
+          const periodYearInput = document.getElementById(`period-year-${contractorId}`);
+
+          if (periodMonthInput && periodMonthInput.value) {
+            formData.append("period_month", periodMonthInput.value);
+          }
+
+          if (periodYearInput && periodYearInput.value) {
+            formData.append("period_year", periodYearInput.value);
+          }
+
           const res = await fetch(API + "/api/documents", {
             method: "POST",
             body: formData
@@ -796,6 +807,19 @@ function renderContractors(data) {
             </select>
           </div>
 
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <input 
+              id="period-month-${c.id}" 
+              placeholder="Month (1-12)" 
+              style="width:120px; padding:8px; border-radius:6px; border:1px solid #d9dee5;"
+            />
+            <input 
+              id="period-year-${c.id}" 
+              placeholder="Year (2025)" 
+              style="width:140px; padding:8px; border-radius:6px; border:1px solid #d9dee5;"
+            />
+          </div>
+          
           <div style="display:flex; flex-wrap:wrap; gap:8px;">
             <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
             <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
