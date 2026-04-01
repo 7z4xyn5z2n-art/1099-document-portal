@@ -642,11 +642,11 @@ function setStatus(id, message, type) {
 
             const formData = new FormData();
             formData.append("file", file);
-            formData.append("token", token);
+            formData.append("contractor_id", contractorId);
             formData.append("document_type", getSelectedDocType());
             formData.append("notes", getUploadNotes());
-
-            const res = await fetch(API + "/api/contractor-portal/documents", {
+          
+            const res = await fetch(API + "/api/documents", {
               method: "POST",
               body: formData
             });
