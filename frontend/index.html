@@ -455,10 +455,31 @@
       return "contractor.html?contractorId=" + contractorId;
     }
 
-    function openContractorPortal(contractorId) {
-      const url = getContractorPortalUrl(contractorId);
-      window.open(url, "_blank");
+   async function openContractorPortal(contractorId) {
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId + "/access-link", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        created_by: "Staff"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to generate secure portal link");
+      return;
     }
+
+    window.open(data.portal_url, "_blank");
+  } catch (err) {
+    console.error("Open contractor portal error:", err);
+    alert("Unable to open contractor portal");
+  }
+}
 
     async function copyContractorPortalLink(contractorId) {
       const url = window.location.origin +
