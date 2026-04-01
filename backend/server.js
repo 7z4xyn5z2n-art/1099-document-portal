@@ -762,10 +762,13 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'contractor_id and file required' });
     }
 
-    const now = new Date();
-    const year = String(now.getFullYear());
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const safeDocType = (document_type || 'other').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      const now = new Date();
+      const effectiveYear = period_year || now.getFullYear();
+      const effectiveMonth = period_month || (now.getMonth() + 1);
+
+      const year = String(effectiveYear);
+      const month = String(effectiveMonth).padStart(2, '0');
+      const safeDocType = (document_type || 'other').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
 
     const filePath = `${contractor_id}/${year}/${month}/${safeDocType}/${Date.now()}-${file.originalname}`;
 
@@ -781,29 +784,29 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
     }
 
     const result = await pool.query(
-      `
-      INSERT INTO documents (
-        contractor_id,
-        document_type,
-        file_name,
-        storage_reference,
-        period_month,
-        period_year,
-        notes
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
-      RETURNING *
-      `,
-      [
-        contractor_id,
-        document_type || 'general',
-        file.originalname,
-        filePath,
-        period_month || null,
-        period_year || null,
-        notes || null
-      ]
-    );
+  `
+  INSERT INTO documents (
+    contractor_id,
+    document_type,
+    file_name,
+    storage_reference,
+    period_month,
+    period_year,
+    notes
+  )
+  VALUES ($1,$2,$3,$4,$5,$6,$7)
+  RETURNING *
+  `,
+  [
+    contractor_id,
+    document_type || 'general',
+    file.originalname,
+    filePath,
+    effectiveMonth,
+    effectiveYear,
+    notes || null
+  ]
+);
 
     res.status(201).json(result.rows[0]);
   } catch (err) {
