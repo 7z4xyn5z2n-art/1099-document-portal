@@ -246,6 +246,7 @@ app.get('/api/contractors/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 app.post('/api/contractors/:id/access-link', async (req, res) => {
   try {
     const contractorId = req.params.id;
@@ -289,6 +290,56 @@ app.post('/api/contractors/:id/access-link', async (req, res) => {
     });
   } catch (error) {
     console.error('Create contractor access link error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+ app.get('/api/contractor-portal/session', async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ error: 'Token is required' });
+    }
+
+    const tokenResult = await pool.query(
+      `
+      SELECT *
+      FROM contractor_access_tokens
+      WHERE access_token = $1
+        AND is_active = true
+        AND expires_at > NOW()
+      `,
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const tokenRow = tokenResult.rows[0];
+
+    const contractorResult = await pool.query(
+      `SELECT * FROM contractors WHERE id = $1`,
+      [tokenRow.contractor_id]
+    );
+
+    if (contractorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
+    const contractor = contractorResult.rows[0];
+
+    res.json({
+      contractor_id: contractor.id,
+      contractor_name: contractor.contractor_name,
+      business_name: contractor.business_name,
+      email: contractor.email,
+      phone: contractor.phone,
+      status: contractor.status
+    });
+
+  } catch (error) {
+    console.error('Contractor session error:', error);
     res.status(500).json({ error: error.message });
   }
 });
