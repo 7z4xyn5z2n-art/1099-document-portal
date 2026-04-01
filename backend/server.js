@@ -961,6 +961,67 @@ app.get('/api/documents/file/:documentId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+app.get('/api/contractor-portal/file/:documentId', async (req, res) => {
+  try {
+    const { token } = req.query;
+    const { documentId } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ error: 'token is required' });
+    }
+
+    const tokenResult = await pool.query(
+      `
+      SELECT contractor_id
+      FROM contractor_access_tokens
+      WHERE access_token = $1
+        AND is_active = true
+        AND expires_at > NOW()
+      `,
+      [token]
+    );
+
+    if (tokenResult.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+
+    const contractorId = tokenResult.rows[0].contractor_id;
+
+    const docResult = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE id = $1
+        AND contractor_id = $2
+      `,
+      [documentId, contractorId]
+    );
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const doc = docResult.rows[0];
+
+    const { data, error } = await supabase.storage
+      .from('contractor-docs')
+      .createSignedUrl(doc.storage_reference, 60 * 10);
+
+        if (error) {
+          console.error('Contractor signed URL error:', error);
+          return res.status(500).json({ error: error.message });
+        }
+
+    res.json({
+      url: data.signedUrl,
+      file_name: doc.file_name,
+      document_type: doc.document_type
+    });
+  } catch (err) {
+    console.error('Contractor file access error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
