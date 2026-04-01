@@ -3,6 +3,7 @@ const cors = require('cors');
 const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
+const crypto = require('crypto');
 
 const app = express();
 const port = process.env.PORT || 10000;
@@ -28,7 +29,9 @@ const upload = multer({
     fileSize: 15 * 1024 * 1024
   }
 });
-
+function generateAccessToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
 app.get('/', (req, res) => {
   res.json({ message: '1099 Document Portal API is running' });
 });
@@ -147,6 +150,16 @@ app.get('/setup-v2', async (req, res) => {
         ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'new',
         ADD COLUMN IF NOT EXISTS reviewed_by TEXT,
         ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+        
+      CREATE TABLE IF NOT EXISTS contractor_access_tokens (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        contractor_id UUID NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
+        access_token TEXT NOT NULL UNIQUE,
+        expires_at TIMESTAMP NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_by TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );  
     `);
 
     res.json({ message: 'Database setup v2 complete (clean)' });
@@ -215,7 +228,7 @@ app.get('/api/contractors', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
+                      
 app.get('/api/contractors/:id', async (req, res) => {
   try {
     const result = await pool.query(
@@ -233,7 +246,52 @@ app.get('/api/contractors/:id', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+app.post('/api/contractors/:id/access-link', async (req, res) => {
+  try {
+    const contractorId = req.params.id;
+    const { created_by } = req.body || {};
 
+    const contractorResult = await pool.query(
+      `SELECT * FROM contractors WHERE id = $1`,
+      [contractorId]
+    );
+
+    if (contractorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
+    const accessToken = generateAccessToken();
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
+
+    await pool.query(
+      `
+      INSERT INTO contractor_access_tokens (
+        contractor_id,
+        access_token,
+        expires_at,
+        created_by
+      )
+      VALUES ($1, $2, $3, $4)
+      `,
+      [
+        contractorId,
+        accessToken,
+        expiresAt,
+        created_by || 'Staff'
+      ]
+    );
+
+    res.json({
+      contractor_id: contractorId,
+      access_token: accessToken,
+      expires_at: expiresAt,
+      portal_url: `https://7z4xyn5z2n-art.github.io/1099-document-portal/frontend/contractor.html?token=${accessToken}`
+    });
+  } catch (error) {
+    console.error('Create contractor access link error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 /*
   FINANCIAL ENTRIES
 */
