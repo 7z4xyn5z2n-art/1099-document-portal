@@ -355,6 +355,7 @@ app.post('/api/contractors/:id/access-link', async (req, res) => {
 app.post('/api/entries', async (req, res) => {
   const {
     contractor_id,
+    document_id,
     entry_type,
     source_type,
     entry_date,
@@ -377,6 +378,7 @@ app.post('/api/entries', async (req, res) => {
       `
       INSERT INTO financial_entries (
         contractor_id,
+        document_id,
         entry_type,
         source_type,
         entry_date,
@@ -387,11 +389,12 @@ app.post('/api/entries', async (req, res) => {
         original_description,
         original_vendor_or_payor
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
       `,
       [
         contractor_id,
+        document_id || null,
         entry_type,
         source_type || 'manual',
         entry_date,
