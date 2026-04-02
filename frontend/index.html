@@ -745,6 +745,8 @@
         }
 
         data.forEach(doc => {
+          console.log("DOC ID:", doc.id, doc.file_name);
+          
           const date = new Date(doc.created_at).toLocaleDateString();
           const status = doc.review_status || "new";
           const periodMonth = doc.period_month || "";
