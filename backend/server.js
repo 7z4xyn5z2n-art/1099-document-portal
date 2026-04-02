@@ -161,11 +161,18 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
   const entities = result?.document?.entities || [];
   const fullText = result?.document?.text || '';
 
-  const rawAmount =
+  let rawAmount =
     extractEntityText(entities, 'total_amount') ||
     extractEntityText(entities, 'net_amount') ||
     extractEntityText(entities, 'amount_due') ||
     '';
+
+  if (!rawAmount && fullText) {
+    const matches = fullText.match(/\$?\d{1,3}(,\d{3})*(\.\d{2})/g);
+    if (matches && matches.length > 0) {
+      rawAmount = matches[matches.length - 1]; // usually total is last
+    }
+  }
 
   const rawVendor =
     extractEntityText(entities, 'supplier_name') ||
@@ -173,6 +180,24 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
     extractEntityText(entities, 'vendor_name') ||
     '';
 
+ let cleanedVendor = rawVendor;
+
+if (!cleanedVendor && fullText) {
+  const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length > 0) {
+    cleanedVendor = lines[0]; // first line is often vendor name
+  }
+}
+
+cleanedVendor = cleanedVendor
+  .replace(/\s+/g, ' ')
+  .replace(/^[^a-zA-Z0-9]+/, '')
+  .trim();
+
+if (cleanedVendor.length > 60) {
+  cleanedVendor = cleanedVendor.slice(0, 60).trim();
+}
+  
   const rawDate =
     extractEntityText(entities, 'invoice_date') ||
     extractEntityText(entities, 'receipt_date') ||
@@ -192,7 +217,7 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
 
   return {
     amount: normalizeAmount(rawAmount) || '0.00',
-    vendor_or_payor: rawVendor || '',
+    vendor_or_payor: cleanedVendor || '',
     entry_date: rawDate || new Date().toISOString().slice(0, 10),
     category: categoryGuess.category,
     confidence: categoryGuess.confidence,
@@ -802,6 +827,76 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
     res.status(500).json({ error: err.message || 'Failed to analyze document' });
   }
 });
+
+app.post('/api/documents/analyze-batch/:contractorId', async (req, res) => {
+  const { contractorId } = req.params;
+
+  try {
+    const docsResult = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE contractor_id = $1
+      ORDER BY created_at DESC
+      `,
+      [contractorId]
+    );
+
+    const documents = docsResult.rows;
+
+    const results = [];
+
+    for (const doc of documents) {
+      try {
+        if (!doc.storage_reference) continue;
+
+        const { data: downloadData, error: downloadError } = await supabase.storage
+          .from('contractor-docs')
+          .download(doc.storage_reference);
+
+        if (downloadError) {
+          console.error('Download error:', downloadError);
+          continue;
+        }
+
+        const arrayBuffer = await downloadData.arrayBuffer();
+        const fileBuffer = Buffer.from(arrayBuffer);
+
+        let mimeType = 'application/pdf';
+        const fileName = String(doc.file_name || '').toLowerCase();
+
+        if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+          mimeType = 'image/jpeg';
+        } else if (fileName.endsWith('.png')) {
+          mimeType = 'image/png';
+        } else if (fileName.endsWith('.webp')) {
+          mimeType = 'image/webp';
+        }
+
+        const analysis = await analyzeDocumentWithGoogle(doc, fileBuffer, mimeType);
+
+        results.push({
+          document_id: doc.id,
+          file_name: doc.file_name,
+          suggested: analysis
+        });
+
+      } catch (err) {
+        console.error('Batch analyze error:', err);
+      }
+    }
+
+    res.json({
+      total: results.length,
+      results
+    });
+
+  } catch (err) {
+    console.error('Batch route error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /*
   ADMIN REVIEW / CORRECTION
 */
