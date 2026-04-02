@@ -916,6 +916,12 @@ function filterContractors() {
 }
 
 async function createEntryFromDoc(documentId) {
+  const amountInput = prompt("Enter amount:");
+  if (amountInput === null || amountInput.trim() === "") return;
+
+  const entryDateInput = prompt("Enter entry date (YYYY-MM-DD):");
+  if (entryDateInput === null || entryDateInput.trim() === "") return;
+
   try {
     const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
       method: "POST",
@@ -923,7 +929,12 @@ async function createEntryFromDoc(documentId) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        entry_type: "expense"
+        entry_type: "expense",
+        entry_date: entryDateInput,
+        amount: Number(amountInput),
+        category: "Uncategorized",
+        description: "Created from document",
+        vendor_or_payor: ""
       })
     });
 
