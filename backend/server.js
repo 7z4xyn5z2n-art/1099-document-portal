@@ -177,6 +177,8 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
     extractEntityText(entities, 'invoice_date') ||
     extractEntityText(entities, 'receipt_date') ||
     extractEntityText(entities, 'due_date') ||
+    extractEntityText(entities, 'transaction_date') ||
+    extractEntityText(entities, 'date') ||
     '';
 
   const combinedText = [
