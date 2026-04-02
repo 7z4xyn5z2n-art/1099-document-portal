@@ -77,6 +77,9 @@ app.get('/setup-v2', async (req, res) => {
       CREATE TABLE IF NOT EXISTS financial_entries (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         contractor_id UUID REFERENCES contractors(id) ON DELETE CASCADE,
+
+        document_id UUID REFERENCES documents(id) ON DELETE SET NULL,
+        
         entry_type TEXT NOT NULL,
         source_type TEXT NOT NULL DEFAULT 'manual',
         entry_date DATE NOT NULL,
@@ -97,6 +100,9 @@ app.get('/setup-v2', async (req, res) => {
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       );
+
+  ALTER TABLE financial_entries
+  ADD COLUMN IF NOT EXISTS document_id UUID REFERENCES documents(id) ON DELETE SET NULL;
 
       CREATE TABLE IF NOT EXISTS entry_notes (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
