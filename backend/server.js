@@ -487,6 +487,82 @@ app.post('/api/entries/:entryId/notes', async (req, res) => {
   }
 });
 
+app.post('/api/documents/:documentId/create-entry', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const {
+      entry_type,
+      entry_date,
+      amount,
+      category,
+      description,
+      vendor_or_payor
+    } = req.body;
+
+    if (!entry_type || !entry_date || amount == null) {
+      return res.status(400).json({
+        error: 'entry_type, entry_date, and amount are required'
+      });
+    }
+
+    const docResult = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE id = $1
+      `,
+      [documentId]
+    );
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const doc = docResult.rows[0];
+
+    const month = doc.period_month || new Date(entry_date).getMonth() + 1;
+    const year = doc.period_year || new Date(entry_date).getFullYear();
+
+    const result = await pool.query(
+      `
+      INSERT INTO financial_entries (
+        contractor_id,
+        document_id,
+        entry_type,
+        source_type,
+        entry_date,
+        month,
+        year,
+        original_amount,
+        original_category,
+        original_description,
+        original_vendor_or_payor
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING *
+      `,
+      [
+        doc.contractor_id,
+        doc.id,
+        entry_type,
+        'document',
+        entry_date,
+        month,
+        year,
+        amount,
+        category || null,
+        description || null,
+        vendor_or_payor || null
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Create entry from document error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 /*
   ADMIN REVIEW / CORRECTION
 */
