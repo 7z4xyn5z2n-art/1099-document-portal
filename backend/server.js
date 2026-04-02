@@ -419,16 +419,23 @@ app.get('/api/entries/:contractorId/:year/:month', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `
-      SELECT *
-      FROM financial_entries
-      WHERE contractor_id = $1
-        AND year = $2
-        AND month = $3
-      ORDER BY entry_date DESC, created_at DESC
-      `,
-      [contractorId, year, month]
-    );
+  `
+  SELECT
+    financial_entries.*,
+    documents.file_name AS document_file_name,
+    documents.document_type AS document_type_from_doc,
+    documents.period_month AS document_period_month,
+    documents.period_year AS document_period_year
+  FROM financial_entries
+  LEFT JOIN documents
+    ON financial_entries.document_id = documents.id
+  WHERE financial_entries.contractor_id = $1
+    AND financial_entries.year = $2
+    AND financial_entries.month = $3
+  ORDER BY financial_entries.entry_date DESC, financial_entries.created_at DESC
+  `,
+  [contractorId, year, month]
+);
 
     res.json(result.rows);
   } catch (error) {
