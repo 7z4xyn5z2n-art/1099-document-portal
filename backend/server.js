@@ -1,4 +1,5 @@
 const express = require('express');
+const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
 const cors = require('cors');
 const { Pool } = require('pg');
 const multer = require('multer');
@@ -6,6 +7,17 @@ const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 
 const app = express();
+let documentAiClient;
+
+try {
+  const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+
+  documentAiClient = new DocumentProcessorServiceClient({
+    credentials,
+  });
+} catch (err) {
+  console.error('Google Document AI init error:', err);
+}
 const port = process.env.PORT || 10000;
 
 app.use(cors());
@@ -31,6 +43,160 @@ const upload = multer({
 });
 function generateAccessToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+function getGoogleCredentials() {
+  return JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+}
+
+function getDocumentAiLocation() {
+  return process.env.GOOGLE_DOCUMENT_AI_LOCATION || 'us';
+}
+
+function getProcessorIdByDocType(documentType) {
+  const type = String(documentType || '').toLowerCase();
+
+  if (type === 'invoice') {
+    return process.env.GOOGLE_DOCUMENT_AI_INVOICE_PROCESSOR_ID || '';
+  }
+
+  if (type === 'statement') {
+    return process.env.GOOGLE_DOCUMENT_AI_BANK_STATEMENT_PROCESSOR_ID || '';
+  }
+
+  return process.env.GOOGLE_DOCUMENT_AI_EXPENSE_PROCESSOR_ID || '';
+}
+
+function extractEntityText(entities, type) {
+  const match = (entities || []).find(entity => entity.type === type);
+  return match?.mentionText || '';
+}
+
+function normalizeAmount(value) {
+  if (!value) return '';
+  const cleaned = String(value).replace(/[^0-9.-]/g, '');
+  return cleaned || '';
+}
+
+function guessCategoryFromText(textSource) {
+  const text = String(textSource || '').toLowerCase();
+
+  if (
+    text.includes('shell') ||
+    text.includes('chevron') ||
+    text.includes('exxon') ||
+    text.includes('bp') ||
+    text.includes('fuel') ||
+    text.includes('gas')
+  ) {
+    return { category: 'Gas', confidence: 'high' };
+  }
+
+  if (
+    text.includes('restaurant') ||
+    text.includes('meal') ||
+    text.includes('food') ||
+    text.includes('doordash') ||
+    text.includes('uber eats') ||
+    text.includes('mcdonald') ||
+    text.includes('chick-fil-a')
+  ) {
+    return { category: 'Meals', confidence: 'high' };
+  }
+
+  if (
+    text.includes('insurance') ||
+    text.includes('geico') ||
+    text.includes('progressive') ||
+    text.includes('allstate')
+  ) {
+    return { category: 'Insurance', confidence: 'high' };
+  }
+
+  if (
+    text.includes('office') ||
+    text.includes('staples') ||
+    text.includes('depot') ||
+    text.includes('supplies')
+  ) {
+    return { category: 'Office Supplies', confidence: 'medium' };
+  }
+
+  if (
+    text.includes('ad') ||
+    text.includes('ads') ||
+    text.includes('facebook') ||
+    text.includes('meta') ||
+    text.includes('google ads')
+  ) {
+    return { category: 'Advertising', confidence: 'medium' };
+  }
+
+  return { category: 'Uncategorized', confidence: 'low' };
+}
+
+async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
+  if (!documentAiClient) {
+    throw new Error('Document AI client not initialized');
+  }
+
+  const processorId = getProcessorIdByDocType(doc.document_type);
+
+  if (!processorId) {
+    throw new Error(`Missing processor ID for document type: ${doc.document_type || 'receipt'}`);
+  }
+
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID;
+  const location = getDocumentAiLocation();
+
+  const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+
+  const [result] = await documentAiClient.processDocument({
+    name,
+    rawDocument: {
+      content: fileBuffer.toString('base64'),
+      mimeType,
+    },
+  });
+
+  const entities = result?.document?.entities || [];
+  const fullText = result?.document?.text || '';
+
+  const rawAmount =
+    extractEntityText(entities, 'total_amount') ||
+    extractEntityText(entities, 'net_amount') ||
+    extractEntityText(entities, 'amount_due') ||
+    '';
+
+  const rawVendor =
+    extractEntityText(entities, 'supplier_name') ||
+    extractEntityText(entities, 'merchant_name') ||
+    extractEntityText(entities, 'vendor_name') ||
+    '';
+
+  const rawDate =
+    extractEntityText(entities, 'invoice_date') ||
+    extractEntityText(entities, 'receipt_date') ||
+    extractEntityText(entities, 'due_date') ||
+    '';
+
+  const combinedText = [
+    doc.file_name || '',
+    doc.notes || '',
+    rawVendor || '',
+    fullText || '',
+  ].join(' ');
+
+  const categoryGuess = guessCategoryFromText(combinedText);
+
+  return {
+    amount: normalizeAmount(rawAmount) || '0.00',
+    vendor_or_payor: rawVendor || '',
+    entry_date: rawDate || new Date().toISOString().slice(0, 10),
+    category: categoryGuess.category,
+    confidence: categoryGuess.confidence,
+    description: 'Draft created from document analysis',
+    raw_text_preview: fullText.slice(0, 1000),
+  };
 }
 app.get('/', (req, res) => {
   res.json({ message: '1099 Document Portal API is running' });
@@ -564,9 +730,9 @@ app.post('/api/documents/:documentId/create-entry', async (req, res) => {
 });
 
 app.post('/api/documents/:documentId/analyze', async (req, res) => {
-  try {
-    const { documentId } = req.params;
+  const { documentId } = req.params;
 
+  try {
     const docResult = await pool.query(
       `
       SELECT *
@@ -582,88 +748,37 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
 
     const doc = docResult.rows[0];
 
-    const textSource = [
-      doc.file_name || '',
-      doc.document_type || '',
-      doc.notes || ''
-    ].join(' ').toLowerCase();
-
-    let suggested_category = 'Uncategorized';
-    let suggested_vendor_or_payor = '';
-    let suggested_amount = '';
-    let confidence = 'medium';
-    let entry_type = 'expense';
-
-    if (
-      textSource.includes('shell') ||
-      textSource.includes('chevron') ||
-      textSource.includes('exxon') ||
-      textSource.includes('bp') ||
-      textSource.includes('fuel') ||
-      textSource.includes('gas')
-    ) {
-      suggested_category = 'Gas';
-      suggested_vendor_or_payor = 'Gas Station';
-      suggested_amount = '52.13';
-      confidence = 'high';
-    } else if (
-      textSource.includes('restaurant') ||
-      textSource.includes('meal') ||
-      textSource.includes('food') ||
-      textSource.includes('doordash') ||
-      textSource.includes('uber eats') ||
-      textSource.includes('mcdonald') ||
-      textSource.includes('chick-fil-a')
-    ) {
-      suggested_category = 'Meals';
-      suggested_vendor_or_payor = 'Restaurant';
-      suggested_amount = '24.50';
-      confidence = 'high';
-    } else if (
-      textSource.includes('insurance') ||
-      textSource.includes('geico') ||
-      textSource.includes('progressive') ||
-      textSource.includes('allstate')
-    ) {
-      suggested_category = 'Insurance';
-      suggested_vendor_or_payor = 'Insurance Provider';
-      suggested_amount = '180.00';
-      confidence = 'high';
-    } else if (
-      textSource.includes('office') ||
-      textSource.includes('staples') ||
-      textSource.includes('depot') ||
-      textSource.includes('supplies')
-    ) {
-      suggested_category = 'Office Supplies';
-      suggested_vendor_or_payor = 'Office Supplier';
-      suggested_amount = '36.99';
-      confidence = 'medium';
-    } else if (
-      textSource.includes('ad') ||
-      textSource.includes('ads') ||
-      textSource.includes('facebook') ||
-      textSource.includes('meta') ||
-      textSource.includes('google ads')
-    ) {
-      suggested_category = 'Advertising';
-      suggested_vendor_or_payor = 'Advertising Platform';
-      suggested_amount = '125.00';
-      confidence = 'medium';
-    } else if (String(doc.document_type || '').toLowerCase() === 'invoice') {
-      suggested_category = 'Contract Income';
-      suggested_vendor_or_payor = 'Client Payment';
-      suggested_amount = '500.00';
-      confidence = 'medium';
-      entry_type = 'income';
-    } else {
-      suggested_category = 'Uncategorized';
-      suggested_vendor_or_payor = '';
-      suggested_amount = '0.00';
-      confidence = 'low';
+    if (!doc.storage_reference) {
+      return res.status(400).json({ error: 'Document has no storage reference' });
     }
 
-    const fallbackDate = new Date().toISOString().slice(0, 10);
+    const { data: downloadData, error: downloadError } = await supabase.storage
+      .from('contractor-docs')
+      .download(doc.storage_reference);
+
+    if (downloadError) {
+      console.error('Supabase download error:', downloadError);
+      return res.status(500).json({ error: downloadError.message });
+    }
+
+    const arrayBuffer = await downloadData.arrayBuffer();
+    const fileBuffer = Buffer.from(arrayBuffer);
+
+    let mimeType = 'application/pdf';
+
+    const fileName = String(doc.file_name || '').toLowerCase();
+
+    if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+      mimeType = 'image/jpeg';
+    } else if (fileName.endsWith('.png')) {
+      mimeType = 'image/png';
+    } else if (fileName.endsWith('.webp')) {
+      mimeType = 'image/webp';
+    } else if (fileName.endsWith('.pdf')) {
+      mimeType = 'application/pdf';
+    }
+
+    const analysis = await analyzeDocumentWithGoogle(doc, fileBuffer, mimeType);
 
     res.json({
       document_id: doc.id,
@@ -671,21 +786,20 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
       file_name: doc.file_name,
       document_type: doc.document_type || 'other',
       suggested: {
-        entry_type,
-        amount: suggested_amount,
-        entry_date: fallbackDate,
-        category: suggested_category,
-        description: 'Draft created from document analysis',
-        vendor_or_payor: suggested_vendor_or_payor,
-        confidence
+        entry_type: doc.document_type === 'invoice' ? 'income' : 'expense',
+        amount: analysis.amount || '0.00',
+        entry_date: analysis.entry_date || new Date().toISOString().slice(0, 10),
+        category: analysis.category || 'Uncategorized',
+        description: analysis.description || 'Draft created from document analysis',
+        vendor_or_payor: analysis.vendor_or_payor || '',
+        confidence: analysis.confidence || 'low'
       }
     });
-  } catch (error) {
-    console.error('Analyze document error:', error);
-    res.status(500).json({ error: error.message });
+  } catch (err) {
+    console.error('Analyze document error:', err);
+    res.status(500).json({ error: err.message || 'Failed to analyze document' });
   }
 });
-
 /*
   ADMIN REVIEW / CORRECTION
 */
