@@ -796,9 +796,15 @@
         </div>
       </div>
 
-      <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
-        View
-      </button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
+          View
+        </button>
+
+        <button onclick="createEntryFromDoc('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
+          Create Entry
+        </button>
+      </div>
     </div>
   </div>
 `;
@@ -909,6 +915,34 @@ function filterContractors() {
   renderContractors(filtered);
 }
 
+async function createEntryFromDoc(documentId) {
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        entry_type: "expense"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create entry");
+      return;
+    }
+
+    alert("Financial entry created successfully");
+    console.log("ENTRY CREATED:", data);
+
+  } catch (err) {
+    console.error(err);
+    alert("Error creating entry");
+  }
+}
+    
 loadContractors();
   </script>
 </body>
