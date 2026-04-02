@@ -475,6 +475,7 @@
     const API = "https://one099-document-portal2.onrender.com";
       let allContractors = [];
       let analysisDrafts = {};
+      let analyzingDocs = {};
     function showStatus(message, type) {
       const box = document.getElementById("statusBox");
       box.className = "status " + type;
@@ -774,6 +775,8 @@
   }
 }
     async function analyzeDocument(documentId, contractorId) {
+        analyzingDocs[documentId] = true;
+        loadDocuments(contractorId);
   try {
     const res = await fetch(API + "/api/documents/" + documentId + "/analyze", {
       method: "POST",
@@ -785,13 +788,17 @@
     const data = await res.json();
 
     if (!res.ok) {
+      analyzingDocs[documentId] = false;
+      loadDocuments(contractorId);
       alert(data.error || "Unable to analyze document");
       return;
     }
 
     analysisDrafts[documentId] = data.suggested;
+    analyzingDocs[documentId] = false;
     loadDocuments(contractorId);
   } catch (err) {
+    analyzingDocs[documentId] = false;
     console.error("Analyze document error:", err);
     alert("Unable to analyze document");
   }
@@ -981,8 +988,12 @@ function renderAnalysisDraft(documentId, contractorId, draft) {
           View
         </button>
 
-        <button onclick="analyzeDocument('${doc.id}', '${contractorId}')" style="padding:8px 12px; border-radius:8px;">
-          Analyze Document
+        <button 
+          onclick="analyzeDocument('${doc.id}', '${contractorId}')" 
+          style="padding:8px 12px; border-radius:8px;"
+          ${analyzingDocs[doc.id] ? 'disabled' : ''}
+        >
+          ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze Document'}
         </button>
 
         <button onclick="createEntryFromDoc('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
