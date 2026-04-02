@@ -303,6 +303,50 @@
       border-radius: 8px;
     }
 
+    .analysis-box {
+      margin-top: 12px;
+      padding: 12px;
+      background: #eef6ff;
+      border: 1px solid #cfe0f5;
+      border-radius: 10px;
+    }
+
+    .analysis-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #174b73;
+      margin-bottom: 10px;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .analysis-grid input,
+    .analysis-grid select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #cfd8e3;
+      background: #fff;
+    }
+
+    .analysis-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .analysis-confidence {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #4b647d;
+      font-weight: 700;
+    }
+    
     .doc-row {
       display: flex;
       justify-content: space-between;
@@ -430,6 +474,7 @@
   <script>
     const API = "https://one099-document-portal2.onrender.com";
       let allContractors = [];
+      let analysisDrafts = {};
     function showStatus(message, type) {
       const box = document.getElementById("statusBox");
       box.className = "status " + type;
@@ -728,7 +773,142 @@
     alert("Update failed");
   }
 }
-    
+    async function analyzeDocument(documentId, contractorId) {
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId + "/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      }
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to analyze document");
+      return;
+    }
+
+    analysisDrafts[documentId] = data.suggested;
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Analyze document error:", err);
+    alert("Unable to analyze document");
+  }
+}
+
+function cancelAnalysisDraft(documentId, contractorId) {
+  delete analysisDrafts[documentId];
+  loadDocuments(contractorId);
+}
+
+async function confirmAnalyzedEntry(documentId, contractorId) {
+  const entryType = document.getElementById("analysis-entry-type-" + documentId)?.value || "expense";
+  const amount = document.getElementById("analysis-amount-" + documentId)?.value || "";
+  const entryDate = document.getElementById("analysis-date-" + documentId)?.value || "";
+  const category = document.getElementById("analysis-category-" + documentId)?.value || "Uncategorized";
+  const description = document.getElementById("analysis-description-" + documentId)?.value || "";
+  const vendor = document.getElementById("analysis-vendor-" + documentId)?.value || "";
+
+  if (!amount || Number(amount) <= 0) {
+    alert("Enter a valid amount");
+    return;
+  }
+
+  if (!entryDate) {
+    alert("Enter an entry date");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        entry_type: entryType,
+        entry_date: entryDate,
+        amount: Number(amount),
+        category: category,
+        description: description,
+        vendor_or_payor: vendor
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create entry");
+      return;
+    }
+
+    delete analysisDrafts[documentId];
+    alert("Financial entry created successfully");
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Confirm analyzed entry error:", err);
+    alert("Error creating entry");
+  }
+}
+
+function renderAnalysisDraft(documentId, contractorId, draft) {
+  if (!draft) return "";
+
+  return `
+    <div class="analysis-box">
+      <div class="analysis-title">Draft Analysis Ready For Review</div>
+
+      <div class="analysis-grid">
+        <div>
+          <label>Entry Type</label>
+          <select id="analysis-entry-type-${documentId}">
+            <option value="expense" ${draft.entry_type === "expense" ? "selected" : ""}>Expense</option>
+            <option value="income" ${draft.entry_type === "income" ? "selected" : ""}>Income</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Amount</label>
+          <input id="analysis-amount-${documentId}" value="${escapeHtml(draft.amount || "")}" />
+        </div>
+
+        <div>
+          <label>Date</label>
+          <input id="analysis-date-${documentId}" type="date" value="${escapeHtml(draft.entry_date || "")}" />
+        </div>
+
+        <div>
+          <label>Category</label>
+          <input id="analysis-category-${documentId}" value="${escapeHtml(draft.category || "Uncategorized")}" />
+        </div>
+
+        <div>
+          <label>Vendor / Payor</label>
+          <input id="analysis-vendor-${documentId}" value="${escapeHtml(draft.vendor_or_payor || "")}" />
+        </div>
+
+        <div>
+          <label>Description</label>
+          <input id="analysis-description-${documentId}" value="${escapeHtml(draft.description || "")}" />
+        </div>
+      </div>
+
+      <div class="analysis-confidence">
+        Confidence: ${escapeHtml(draft.confidence || "low")}
+      </div>
+
+      <div class="analysis-actions">
+        <button class="secondary-btn" onclick="confirmAnalyzedEntry('${documentId}', '${contractorId}')">
+          Confirm Entry
+        </button>
+        <button class="soft-btn" onclick="cancelAnalysisDraft('${documentId}', '${contractorId}')">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+}
     async function loadDocuments(contractorId) {
       try {
         const res = await fetch(API + "/api/documents/" + contractorId);
@@ -801,11 +981,16 @@
           View
         </button>
 
+        <button onclick="analyzeDocument('${doc.id}', '${contractorId}')" style="padding:8px 12px; border-radius:8px;">
+          Analyze Document
+        </button>
+
         <button onclick="createEntryFromDoc('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
-          Create Entry
+          Manual Entry
         </button>
       </div>
     </div>
+    ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
   </div>
 `;
         });
