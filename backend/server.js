@@ -878,7 +878,15 @@ app.post('/api/documents/analyze-batch/:contractorId', async (req, res) => {
         results.push({
           document_id: doc.id,
           file_name: doc.file_name,
-          suggested: analysis
+          suggested: {
+            entry_type: doc.document_type === 'invoice' ? 'income' : 'expense',
+            amount: analysis.amount || '0.00',
+            entry_date: analysis.entry_date || new Date().toISOString().slice(0, 10),
+            category: analysis.category || 'Uncategorized',
+            description: analysis.description || 'Draft created from document analysis',
+            vendor_or_payor: analysis.vendor_or_payor || '',
+            confidence: analysis.confidence || 'low'
+          }
         });
 
       } catch (err) {
