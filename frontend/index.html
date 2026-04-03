@@ -955,7 +955,7 @@ function renderAnalysisDraft(documentId, contractorId, draft) {
   `;
 }
     async function loadDocuments(contractorId) {
-      try {
+       try {
         const res = await fetch(API + "/api/documents/" + contractorId);
         const data = await res.json();
 
@@ -969,84 +969,79 @@ function renderAnalysisDraft(documentId, contractorId, draft) {
           return;
         }
 
-        data.forEach(doc => {
-          console.log("DOC ID:", doc.id, doc.file_name);
-          
-          const date = new Date(doc.created_at).toLocaleDateString();
-          const status = doc.review_status || "new";
-          const periodMonth = doc.period_month || "";
-          const periodYear = doc.period_year || "";
-          const docType = doc.document_type || "other";
-          const notes = doc.notes || "";
-          
-          div.innerHTML += `
-  <div class="doc-card">
-    <div class="doc-row">
-      <div style="flex:1;">
-        <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
-        <div class="doc-meta">
-          Type: ${escapeHtml(doc.document_type || "other")}<br>
-          Period: ${escapeHtml(doc.period_month || "—")}/${escapeHtml(doc.period_year || "—")}<br>
-          Uploaded: ${escapeHtml(date)}<br>
-          Status: <b>${escapeHtml(status)}</b>
+        const grouped = groupStaffDocuments(data);
+
+function renderGroup(title, docs) {
+  if (!docs.length) return "";
+
+  let html = `
+    <div style="margin-bottom:16px;">
+      <div style="font-weight:700; font-size:14px; margin-bottom:8px;">
+        📁 ${title} (${docs.length})
+      </div>
+  `;
+
+  docs.forEach(doc => {
+    const date = new Date(doc.created_at).toLocaleDateString();
+    const status = doc.review_status || "new";
+    const periodMonth = doc.period_month || "";
+    const periodYear = doc.period_year || "";
+
+    html += `
+      <div class="doc-card">
+        <div class="doc-row">
+          <div style="flex:1;">
+            <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
+            <div class="doc-meta">
+              Type: ${escapeHtml(doc.document_type || "other")}<br>
+              Period: ${escapeHtml(periodMonth || "—")}/${escapeHtml(periodYear || "—")}<br>
+              Uploaded: ${escapeHtml(date)}<br>
+              Status: <b>${escapeHtml(status)}</b>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button onclick="openDocument('${doc.id}')">View</button>
+
+            <button 
+              onclick="analyzeDocument('${doc.id}', '${contractorId}')"
+              ${analyzingDocs[doc.id] ? 'disabled' : ''}
+            >
+              ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze'}
+            </button>
+          </div>
         </div>
 
-        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-          <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')" style="padding:6px; border-radius:6px;">
-            <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
-            <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
-            <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
-          </select>
-
-          <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')" style="padding:6px; border-radius:6px;">
-            <option value="receipt" ${docType === 'receipt' ? 'selected' : ''}>Receipt</option>
-            <option value="statement" ${docType === 'statement' ? 'selected' : ''}>Statement</option>
-            <option value="invoice" ${docType === 'invoice' ? 'selected' : ''}>Invoice</option>
-            <option value="other" ${docType === 'other' ? 'selected' : ''}>Other</option>
-          </select>
-
-          <input
-            value="${periodMonth}"
-            placeholder="Month"
-            style="width:60px; padding:6px;"
-            onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
-          />
-
-          <input
-            value="${periodYear}"
-            placeholder="Year"
-            style="width:80px; padding:6px;"
-            onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
-          />
-        </div>
+        ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
       </div>
+    `;
+  });
 
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button onclick="openDocument('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
-          View
-        </button>
+  html += `</div>`;
+  return html;
+}
 
-        <button 
-          onclick="analyzeDocument('${doc.id}', '${contractorId}')" 
-          style="padding:8px 12px; border-radius:8px;"
-          ${analyzingDocs[doc.id] ? 'disabled' : ''}
-        >
-          ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze Document'}
-        </button>
-
-        <button onclick="createEntryFromDoc('${doc.id}')" style="padding:8px 12px; border-radius:8px;">
-          Manual Entry
-        </button>
-      </div>
-    </div>
-    ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
-  </div>
-`;
-        });
+div.innerHTML =
+  renderGroup("Receipts", grouped.receipt) +
+  renderGroup("Statements", grouped.statement) +
+  renderGroup("Invoices", grouped.invoice) +
+  renderGroup("Other", grouped.other);
+         
       } catch (err) {
         console.error("Load documents error:", err);
       }
     }
+function groupStaffDocuments(docs) {
+  return {
+    receipt: docs.filter(doc => (doc.document_type || "other") === "receipt"),
+    statement: docs.filter(doc => (doc.document_type || "other") === "statement"),
+    invoice: docs.filter(doc => (doc.document_type || "other") === "invoice"),
+    other: docs.filter(doc => {
+      const type = doc.document_type || "other";
+      return type !== "receipt" && type !== "statement" && type !== "invoice";
+    })
+  };
+}    
 function renderContractors(data) {
   const div = document.getElementById("contractors");
   div.className = "";
