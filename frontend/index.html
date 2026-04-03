@@ -804,6 +804,44 @@
   }
 }
 
+async function analyzeBatchDocuments(contractorId) {
+  try {
+    alert("Analyzing all documents... this may take a few seconds");
+
+    const res = await fetch(API + "/api/documents/analyze-batch/" + contractorId, {
+      method: "POST"
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Batch analysis failed");
+      return;
+    }
+
+    // Store all drafts
+    data.results.forEach(result => {
+      analysisDrafts[result.document_id] = {
+        entry_type: result.suggested.entry_type || "expense",
+        amount: result.suggested.amount || "0.00",
+        entry_date: result.suggested.entry_date,
+        category: result.suggested.category,
+        description: result.suggested.description,
+        vendor_or_payor: result.suggested.vendor_or_payor,
+        confidence: result.suggested.confidence
+      };
+    });
+
+    alert(`Analyzed ${data.total} documents`);
+
+    loadDocuments(contractorId);
+
+  } catch (err) {
+    console.error("Batch analyze error:", err);
+    alert("Batch analysis failed");
+  }
+}
+    
 function cancelAnalysisDraft(documentId, contractorId) {
   delete analysisDrafts[documentId];
   loadDocuments(contractorId);
@@ -1086,7 +1124,10 @@ function renderContractors(data) {
         </div>
 
         <div class="section-block">
-          <div class="section-title">Documents & Review Status</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div class="section-title">Documents & Review Status</div>
+            <button class="soft-btn" onclick="analyzeBatchDocuments('${c.id}')">Analyze All Documents</button>
+          </div>
           <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
         </div>
       </div>
