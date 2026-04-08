@@ -1005,81 +1005,92 @@ function renderGroup(title, docs, folderKey) {
           </div>
       `;
 
-      if (isMonthOpen) {
-        group.docs.forEach(doc => {
-          const date = new Date(doc.created_at).toLocaleDateString();
-          const status = doc.review_status || "new";
-          const periodMonth = doc.period_month || "";
-          const periodYear = doc.period_year || "";
+if (isMonthOpen) {
+const categoryGroups = groupByCategory(group.docs);
 
-          html += `
-            <div class="doc-card">
-              <div class="doc-row">
-                <div style="flex:1;">
-                  <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
-                  <div class="doc-meta">
-                    Uploaded: ${escapeHtml(date)}<br>
-                    Status: <b>${escapeHtml(status)}</b><br>
-                    Notes: ${escapeHtml(doc.notes || "—")}
-                  </div>
+categoryGroups.forEach(categoryGroup => {
+  html += `
+    <div style="margin:8px 0 12px 12px;">
+      <div style="font-weight:600; font-size:12px; margin-bottom:6px;">
+        📂 ${categoryGroup.label} (${categoryGroup.docs.length})
+      </div>
+  `;
 
-                  <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                    <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')">
-                      <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
-                      <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
-                      <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
-                    </select>
+  categoryGroup.docs.forEach(doc => {
+    const date = new Date(doc.created_at).toLocaleDateString();
+    const status = doc.review_status || "new";
+    const periodMonth = doc.period_month || "";
+    const periodYear = doc.period_year || "";
 
-                    <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')">
-                      <option value="receipt" ${(doc.document_type || "other") === 'receipt' ? 'selected' : ''}>Receipt</option>
-                      <option value="statement" ${(doc.document_type || "other") === 'statement' ? 'selected' : ''}>Statement</option>
-                      <option value="invoice" ${(doc.document_type || "other") === 'invoice' ? 'selected' : ''}>Invoice</option>
-                      <option value="other" ${(doc.document_type || "other") === 'other' ? 'selected' : ''}>Other</option>
-                    </select>
-
-                    <input
-                      value="${escapeHtml(periodMonth)}"
-                      placeholder="Month"
-                      style="width:70px;"
-                      onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
-                    />
-
-                    <input
-                      value="${escapeHtml(periodYear)}"
-                      placeholder="Year"
-                      style="width:90px;"
-                      onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
-                    />
-                  </div>
-                </div>
-
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <button onclick="openDocument('${doc.id}')">View</button>
-
-                  <button 
-                    onclick="analyzeDocument('${doc.id}', '${contractorId}')"
-                    ${analyzingDocs[doc.id] ? 'disabled' : ''}
-                  >
-                    ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze'}
-                  </button>
-
-                  <button onclick="createEntryFromDoc('${doc.id}')">Manual Entry</button>
-                </div>
-              </div>
-
-              ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
+    html += `
+      <div class="doc-card">
+        <div class="doc-row">
+          <div style="flex:1;">
+            <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
+            <div class="doc-meta">
+              Uploaded: ${escapeHtml(date)}<br>
+              Status: <b>${escapeHtml(status)}</b><br>
+              Notes: ${escapeHtml(doc.notes || "—")}
             </div>
-          `;
-        });
-      }
+
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+              <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')">
+                <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
+                <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
+                <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+              </select>
+
+              <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')">
+                <option value="receipt" ${(doc.document_type || "other") === 'receipt' ? 'selected' : ''}>Receipt</option>
+                <option value="statement" ${(doc.document_type || "other") === 'statement' ? 'selected' : ''}>Statement</option>
+                <option value="invoice" ${(doc.document_type || "other") === 'invoice' ? 'selected' : ''}>Invoice</option>
+                <option value="other" ${(doc.document_type || "other") === 'other' ? 'selected' : ''}>Other</option>
+              </select>
+
+              <input
+                value="${escapeHtml(periodMonth)}"
+                placeholder="Month"
+                style="width:70px;"
+                onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
+              />
+
+              <input
+                value="${escapeHtml(periodYear)}"
+                placeholder="Year"
+                style="width:90px;"
+                onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
+              />
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button onclick="openDocument('${doc.id}')">View</button>
+
+            <button 
+              onclick="analyzeDocument('${doc.id}', '${contractorId}')"
+              ${analyzingDocs[doc.id] ? 'disabled' : ''}
+            >
+              ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze'}
+            </button>
+
+            <button onclick="createEntryFromDoc('${doc.id}')">Manual Entry</button>
+          </div>
+        </div>
+
+        ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
+      </div>
+    `;
+  });
 
       html += `</div>`;
     });
   }
-
+  html += `</div>`;
+  });
+  }
   html += `</div>`;
   return html;
-}
+  }
 
 div.innerHTML =
   renderGroup("Receipts", grouped.receipt, contractorId + "-receipt") +
@@ -1130,6 +1141,28 @@ function groupByMonthYear(docs) {
 
     return (by * 100 + bm) - (ay * 100 + am);
   });
+}
+
+function groupByCategory(docs) {
+  const groups = {};
+
+  docs.forEach(doc => {
+    const raw = (doc.category || doc.document_type || "Uncategorized");
+    const category = String(raw).trim() || "Uncategorized";
+
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+
+    groups[category].push(doc);
+  });
+
+  return Object.keys(groups)
+    .sort((a, b) => a.localeCompare(b))
+    .map(name => ({
+      label: name,
+      docs: groups[name]
+    }));
 }
     
 function groupStaffDocuments(docs) {
