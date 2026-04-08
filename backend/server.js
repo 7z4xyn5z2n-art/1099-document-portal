@@ -809,11 +809,36 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
 
     const analysis = await analyzeDocumentWithGoogle(doc, fileBuffer, mimeType);
 
+    await pool.query(
+      `
+      UPDATE documents
+      SET
+        category = COALESCE($1, category)
+      WHERE id = $2
+      `,
+      [
+        analysis.category || 'Uncategorized',
+        doc.id
+      ]
+    );
+
+    const refreshedDocResult = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE id = $1
+      `,
+      [doc.id]
+    );
+
+const refreshedDoc = refreshedDocResult.rows[0] || doc;
+    
     res.json({
-      document_id: doc.id,
-      contractor_id: doc.contractor_id,
-      file_name: doc.file_name,
-      document_type: doc.document_type || 'other',
+      document_id: refreshedDoc.id,
+      contractor_id: refreshedDoc.contractor_id,
+      file_name: refreshedDoc.file_name,
+      document_type: refreshedDoc.document_type || 'other',
+      category: refreshedDoc.category || analysis.category || 'Uncategorized',
       suggested: {
         entry_type: doc.document_type === 'invoice' ? 'income' : 'expense',
         amount: analysis.amount || '0.00',
