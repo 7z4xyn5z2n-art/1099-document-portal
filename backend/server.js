@@ -334,6 +334,7 @@ app.get('/setup-v2', async (req, res) => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         contractor_id UUID NOT NULL REFERENCES contractors(id) ON DELETE CASCADE,
         document_type TEXT,
+        category TEXT,
         file_name TEXT,
         storage_reference TEXT,
         period_month INT,
@@ -346,6 +347,7 @@ app.get('/setup-v2', async (req, res) => {
       );
 
       ALTER TABLE documents
+        ADD COLUMN IF NOT EXISTS category TEXT,
         ADD COLUMN IF NOT EXISTS review_status TEXT NOT NULL DEFAULT 'new',
         ADD COLUMN IF NOT EXISTS reviewed_by TEXT,
         ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
@@ -1185,6 +1187,7 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
     const {
       contractor_id,
       document_type,
+      category,
       period_month,
       period_year,
       notes
@@ -1222,18 +1225,20 @@ app.post('/api/documents', upload.single('file'), async (req, res) => {
   INSERT INTO documents (
     contractor_id,
     document_type,
+    category,
     file_name,
     storage_reference,
     period_month,
     period_year,
     notes
   )
-  VALUES ($1,$2,$3,$4,$5,$6,$7)
+VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
   RETURNING *
   `,
   [
     contractor_id,
     document_type || 'general',
+    category || 'Uncategorized',
     file.originalname,
     filePath,
     effectiveMonth,
@@ -1360,21 +1365,23 @@ app.patch('/api/documents/:documentId/review-status', async (req, res) => {
 });
 app.patch('/api/documents/:documentId', async (req, res) => {
   try {
-    const { document_type, period_month, period_year, notes } = req.body;
+    const { document_type, category, period_month, period_year, notes } = req.body;
 
     const result = await pool.query(
       `
       UPDATE documents
       SET
         document_type = COALESCE($1, document_type),
-        period_month = COALESCE($2, period_month),
-        period_year = COALESCE($3, period_year),
-        notes = COALESCE($4, notes)
-      WHERE id = $5
+        category = COALESCE($2, category),
+        period_month = COALESCE($3, period_month),
+        period_year = COALESCE($4, period_year),
+        notes = COALESCE($5, notes)
+      WHERE id = $6
       RETURNING *
       `,
       [
         document_type ?? null,
+        category ?? null,
         period_month ?? null,
         period_year ?? null,
         notes ?? null,
