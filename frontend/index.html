@@ -478,6 +478,7 @@
       let analyzingDocs = {};
       let openFolders = {};
       let openMonthFolders = {};
+      let openCategoryFolders = {};
     function showStatus(message, type) {
       const box = document.getElementById("statusBox");
       box.className = "status " + type;
@@ -1044,18 +1045,25 @@ if (isMonthOpen) {
 const categoryGroups = groupByCategory(group.docs);
 
 categoryGroups.forEach(categoryGroup => {
+  const categoryKey = monthKey + "-" + categoryGroup.label;
+  const isCategoryOpen = openCategoryFolders[categoryKey] !== false;
+
   html += `
     <div style="margin:8px 0 12px 12px;">
-      <div style="font-weight:600; font-size:12px; margin-bottom:6px;">
-        📂 ${categoryGroup.label} (${categoryGroup.docs.length})
+      <div
+        onclick="toggleCategoryFolder('${categoryKey}'); loadDocuments('${contractorId}')"
+        style="font-weight:600; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;"
+      >
+        ${isCategoryOpen ? '📂' : '📁'} ${categoryGroup.label} (${categoryGroup.docs.length})
       </div>
   `;
 
-  categoryGroup.docs.forEach(doc => {
-    const date = new Date(doc.created_at).toLocaleDateString();
-    const status = doc.review_status || "new";
-    const periodMonth = doc.period_month || "";
-    const periodYear = doc.period_year || "";
+  if (isCategoryOpen) {
+    categoryGroup.docs.forEach(doc => {
+      const date = new Date(doc.created_at).toLocaleDateString();
+      const status = doc.review_status || "new";
+      const periodMonth = doc.period_month || "";
+      const periodYear = doc.period_year || "";
 
     html += `
       <div class="doc-card">
@@ -1147,17 +1155,18 @@ categoryGroups.forEach(categoryGroup => {
         ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
       </div>
     `;
-  });
+      });
+  }
 
-      html += `</div>`;
-    });
-  }
   html += `</div>`;
-  });
-  }
-  html += `</div>`;
-  return html;
-  }
+});
+}
+html += `</div>`;
+});
+}
+html += `</div>`;
+return html;
+}
 
 div.innerHTML =
   renderGroup("Receipts", grouped.receipt, contractorId + "-receipt") +
@@ -1176,6 +1185,10 @@ function toggleFolder(folderKey) {
 
 function toggleMonthFolder(monthKey) {
   openMonthFolders[monthKey] = !openMonthFolders[monthKey];
+}
+
+function toggleCategoryFolder(categoryKey) {
+  openCategoryFolders[categoryKey] = !openCategoryFolders[categoryKey];
 }
     
 function groupByMonthYear(docs) {
