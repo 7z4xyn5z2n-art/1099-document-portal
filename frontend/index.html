@@ -477,6 +477,7 @@
       let analysisDrafts = {};
       let analyzingDocs = {};
       let openFolders = {};
+      let openMonthFolders = {};
     function showStatus(message, type) {
       const box = document.getElementById("statusBox");
       box.className = "status " + type;
@@ -991,13 +992,20 @@ function renderGroup(title, docs, folderKey) {
   const monthGroups = groupByMonthYear(docs);
 
   monthGroups.forEach(group => {
-    html += `
-      <div style="margin:10px 0;">
-        <div style="font-weight:600; font-size:13px; margin-bottom:6px;">
-          📁 ${group.label}
-        </div>
-    `;
+  const monthKey = folderKey + "-" + group.label;
+  const isMonthOpen = openMonthFolders[monthKey] !== false;
 
+  html += `
+    <div style="margin:10px 0;">
+      <div
+        onclick="toggleMonthFolder('${monthKey}'); loadDocuments('${contractorId}')"
+        style="font-weight:600; font-size:13px; margin-bottom:6px; cursor:pointer; user-select:none;"
+      >
+        ${isMonthOpen ? '📂' : '📁'} ${group.label}
+      </div>
+  `;
+
+  if (isMonthOpen) {
     group.docs.forEach(doc => {
       const date = new Date(doc.created_at).toLocaleDateString();
       const status = doc.review_status || "new";
@@ -1063,10 +1071,10 @@ function renderGroup(title, docs, folderKey) {
         </div>
       `;
     });
+  }
 
-    html += `</div>`;
-  });
-}
+  html += `</div>`;
+});
 
   html += `</div>`;
   return html;
@@ -1087,6 +1095,10 @@ function toggleFolder(folderKey) {
   openFolders[folderKey] = !openFolders[folderKey];
 }
 
+function toggleMonthFolder(monthKey) {
+  openMonthFolders[monthKey] = !openMonthFolders[monthKey];
+}
+    
 function groupByMonthYear(docs) {
   const groups = {};
 
