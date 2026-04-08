@@ -755,7 +755,7 @@
     }
     async function updateDocumentMeta(documentId, documentType, category, periodMonth, periodYear, contractorId) {
   try {
-    const res = await fetch(API + "/api/documents/" + documentId, {
+     const res = await fetch(API + "/api/documents/" + documentId, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json"
@@ -781,6 +781,36 @@
     alert("Update failed");
   }
 }
+    
+  async function saveDocumentNotes(documentId, contractorId) {
+  try {
+    const notesInput = document.getElementById("doc-notes-" + documentId);
+    const notes = notesInput ? notesInput.value : "";
+
+    const res = await fetch(API + "/api/documents/" + documentId, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        notes: notes
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to save notes");
+      return;
+    }
+
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Save document notes error:", err);
+    alert("Unable to save notes");
+  }
+}  
+    
     async function analyzeDocument(documentId, contractorId) {
         analyzingDocs[documentId] = true;
         loadDocuments(contractorId);
@@ -1035,8 +1065,31 @@ categoryGroups.forEach(categoryGroup => {
             <div class="doc-meta">
               Uploaded: ${escapeHtml(date)}<br>
               Status: <b>${escapeHtml(status)}</b><br>
-              Notes: ${escapeHtml(doc.notes || "—")}
+
+              Reviewed by: ${
+                doc.reviewed_by ? escapeHtml(doc.reviewed_by) : "—"
+              }<br>
+
+              Reviewed at: ${
+                doc.reviewed_at
+                  ? new Date(doc.reviewed_at).toLocaleString()
+                  : "—"
+              }
             </div>
+
+          <div style="margin-top:8px;">
+            <textarea
+              id="doc-notes-${doc.id}"
+              placeholder="Add due diligence / review notes..."
+              style="width:100%; min-height:70px; padding:8px; border-radius:8px; border:1px solid #d9dee5; resize:vertical;"
+            >${escapeHtml(doc.notes || "")}</textarea>
+
+            <div style="margin-top:6px;">
+              <button onclick="saveDocumentNotes('${doc.id}', '${contractorId}')">
+                Save Notes
+              </button>
+            </div>
+          </div>
 
             <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
               <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')">
