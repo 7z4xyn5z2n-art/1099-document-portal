@@ -631,7 +631,10 @@
       const select = document.getElementById(`doc-type-${contractorId}`);
       return select ? select.value : "other";
     }
-
+    function getSelectedCategory(contractorId) {
+      const select = document.getElementById(`doc-category-${contractorId}`);
+      return select ? select.value : "Uncategorized";
+    }
     async function handleFileSelection(contractorId, input) {
       input.onchange = async () => {
         const file = input.files[0];
@@ -642,6 +645,7 @@
           formData.append("file", file);
           formData.append("contractor_id", contractorId);
           formData.append("document_type", getSelectedDocType(contractorId));
+          formData.append("category", getSelectedCategory(contractorId));
 
           const periodMonthInput = document.getElementById(`period-month-${contractorId}`);
           const periodYearInput = document.getElementById(`period-year-${contractorId}`);
@@ -749,7 +753,7 @@
         alert("Unable to update status");
       }
     }
-    async function updateDocumentMeta(documentId, documentType, periodMonth, periodYear, contractorId) {
+    async function updateDocumentMeta(documentId, documentType, category, periodMonth, periodYear, contractorId) {
   try {
     const res = await fetch(API + "/api/documents/" + documentId, {
       method: "PATCH",
@@ -758,6 +762,7 @@
       },
       body: JSON.stringify({
         document_type: documentType || undefined,
+        category: category || undefined,
         period_month: periodMonth || undefined,
         period_year: periodYear || undefined
       })
@@ -1040,25 +1045,34 @@ categoryGroups.forEach(categoryGroup => {
                 <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
               </select>
 
-              <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')">
+              <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, null, '${contractorId}')">
                 <option value="receipt" ${(doc.document_type || "other") === 'receipt' ? 'selected' : ''}>Receipt</option>
                 <option value="statement" ${(doc.document_type || "other") === 'statement' ? 'selected' : ''}>Statement</option>
                 <option value="invoice" ${(doc.document_type || "other") === 'invoice' ? 'selected' : ''}>Invoice</option>
                 <option value="other" ${(doc.document_type || "other") === 'other' ? 'selected' : ''}>Other</option>
               </select>
 
+              <select onchange="updateDocumentMeta('${doc.id}', null, this.value, null, null, '${contractorId}')">
+                <option value="Meals" ${(doc.category || "Uncategorized") === 'Meals' ? 'selected' : ''}>Meals</option>
+                <option value="Gas" ${(doc.category || "Uncategorized") === 'Gas' ? 'selected' : ''}>Gas</option>
+                <option value="Insurance" ${(doc.category || "Uncategorized") === 'Insurance' ? 'selected' : ''}>Insurance</option>
+                <option value="Office Supplies" ${(doc.category || "Uncategorized") === 'Office Supplies' ? 'selected' : ''}>Office Supplies</option>
+                <option value="Advertising" ${(doc.category || "Uncategorized") === 'Advertising' ? 'selected' : ''}>Advertising</option>
+                <option value="Uncategorized" ${(doc.category || "Uncategorized") === 'Uncategorized' ? 'selected' : ''}>Uncategorized</option>
+              </select>
+              
               <input
                 value="${escapeHtml(periodMonth)}"
                 placeholder="Month"
                 style="width:70px;"
-                onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
+                onchange="updateDocumentMeta('${doc.id}', null, null, this.value, null, '${contractorId}')"
               />
 
               <input
                 value="${escapeHtml(periodYear)}"
                 placeholder="Year"
                 style="width:90px;"
-                onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
+                onchange="updateDocumentMeta('${doc.id}', null, null, null, this.value, '${contractorId}')"
               />
             </div>
           </div>
@@ -1222,14 +1236,23 @@ function renderContractors(data) {
         <div class="section-block">
           <div class="section-title">Upload On Behalf Of Contractor</div>
 
-          <div style="margin-bottom:8px;">
-            <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
-              <option value="receipt">Receipt</option>
-              <option value="statement">Bank / Card Statement</option>
-              <option value="invoice">Invoice</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
+        <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+          <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+            <option value="receipt">Receipt</option>
+            <option value="statement">Bank / Card Statement</option>
+            <option value="invoice">Invoice</option>
+            <option value="other">Other</option>
+          </select>
+
+          <select id="doc-category-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+            <option value="Uncategorized">Uncategorized</option>
+            <option value="Meals">Meals</option>
+            <option value="Gas">Gas</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Office Supplies">Office Supplies</option>
+            <option value="Advertising">Advertising</option>
+          </select>
+        </div>
 
           <div style="display:flex; gap:8px; margin-bottom:8px;">
             <input 
