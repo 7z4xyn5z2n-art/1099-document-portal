@@ -1000,10 +1000,38 @@ function renderGroup(title, docs, folderKey) {
             <div style="flex:1;">
               <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
               <div class="doc-meta">
-                Type: ${escapeHtml(doc.document_type || "other")}<br>
-                Period: ${escapeHtml(periodMonth || "—")}/${escapeHtml(periodYear || "—")}<br>
                 Uploaded: ${escapeHtml(date)}<br>
-                Status: <b>${escapeHtml(status)}</b>
+                Status: <b>${escapeHtml(status)}</b><br>
+                Notes: ${escapeHtml(doc.notes || "—")}
+              </div>
+
+              <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')" style="padding:6px; border-radius:6px;">
+                  <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
+                  <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
+                  <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+                </select>
+
+                <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')" style="padding:6px; border-radius:6px;">
+                  <option value="receipt" ${(doc.document_type || "other") === 'receipt' ? 'selected' : ''}>Receipt</option>
+                  <option value="statement" ${(doc.document_type || "other") === 'statement' ? 'selected' : ''}>Statement</option>
+                  <option value="invoice" ${(doc.document_type || "other") === 'invoice' ? 'selected' : ''}>Invoice</option>
+                  <option value="other" ${(doc.document_type || "other") === 'other' ? 'selected' : ''}>Other</option>
+                </select>
+
+                <input
+                  value="${escapeHtml(periodMonth)}"
+                  placeholder="Month"
+                  style="width:70px; padding:6px;"
+                  onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
+                />
+
+                <input
+                  value="${escapeHtml(periodYear)}"
+                  placeholder="Year"
+                  style="width:90px; padding:6px;"
+                  onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
+                />
               </div>
             </div>
 
@@ -1016,6 +1044,8 @@ function renderGroup(title, docs, folderKey) {
               >
                 ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze'}
               </button>
+
+              <button onclick="createEntryFromDoc('${doc.id}')">Manual Entry</button>
             </div>
           </div>
 
