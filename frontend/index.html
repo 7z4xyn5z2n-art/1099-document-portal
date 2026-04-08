@@ -988,7 +988,17 @@ function renderGroup(title, docs, folderKey) {
   `;
 
   if (isOpen) {
-    docs.forEach(doc => {
+  const monthGroups = groupByMonthYear(docs);
+
+  monthGroups.forEach(group => {
+    html += `
+      <div style="margin:10px 0;">
+        <div style="font-weight:600; font-size:13px; margin-bottom:6px;">
+          📁 ${group.label}
+        </div>
+    `;
+
+    group.docs.forEach(doc => {
       const date = new Date(doc.created_at).toLocaleDateString();
       const status = doc.review_status || "new";
       const periodMonth = doc.period_month || "";
@@ -1006,13 +1016,13 @@ function renderGroup(title, docs, folderKey) {
               </div>
 
               <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')" style="padding:6px; border-radius:6px;">
+                <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')">
                   <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
                   <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
                   <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
                 </select>
 
-                <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')" style="padding:6px; border-radius:6px;">
+                <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, '${contractorId}')">
                   <option value="receipt" ${(doc.document_type || "other") === 'receipt' ? 'selected' : ''}>Receipt</option>
                   <option value="statement" ${(doc.document_type || "other") === 'statement' ? 'selected' : ''}>Statement</option>
                   <option value="invoice" ${(doc.document_type || "other") === 'invoice' ? 'selected' : ''}>Invoice</option>
@@ -1022,14 +1032,14 @@ function renderGroup(title, docs, folderKey) {
                 <input
                   value="${escapeHtml(periodMonth)}"
                   placeholder="Month"
-                  style="width:70px; padding:6px;"
+                  style="width:70px;"
                   onchange="updateDocumentMeta('${doc.id}', null, this.value, null, '${contractorId}')"
                 />
 
                 <input
                   value="${escapeHtml(periodYear)}"
                   placeholder="Year"
-                  style="width:90px; padding:6px;"
+                  style="width:90px;"
                   onchange="updateDocumentMeta('${doc.id}', null, null, this.value, '${contractorId}')"
                 />
               </div>
@@ -1053,7 +1063,10 @@ function renderGroup(title, docs, folderKey) {
         </div>
       `;
     });
-  }
+
+    html += `</div>`;
+  });
+}
 
   html += `</div>`;
   return html;
@@ -1072,6 +1085,38 @@ div.innerHTML =
 
 function toggleFolder(folderKey) {
   openFolders[folderKey] = !openFolders[folderKey];
+}
+
+function groupByMonthYear(docs) {
+  const groups = {};
+
+  docs.forEach(doc => {
+    const month = doc.period_month || "Unknown";
+    const year = doc.period_year || "Unknown";
+
+    const key = `${year}-${month}`;
+
+    if (!groups[key]) {
+      groups[key] = {
+        label: (month === "Unknown" || year === "Unknown")
+          ? "Undated"
+          : `${month}/${year}`,
+        docs: []
+      };
+    }
+
+    groups[key].docs.push(doc);
+  });
+
+  // Sort newest first
+  return Object.values(groups).sort((a, b) => {
+    const [ay, am] = a.label.split("/").map(Number);
+    const [by, bm] = b.label.split("/").map(Number);
+
+    if (!ay || !by) return 0;
+
+    return (by * 100 + bm) - (ay * 100 + am);
+  });
 }
     
 function groupStaffDocuments(docs) {
