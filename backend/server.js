@@ -873,58 +873,115 @@ app.post('/api/documents/analyze-batch/:contractorId', async (req, res) => {
 
     const results = [];
 
-    for (const doc of documents) {
-      try {
-        if (!doc.storage_reference) continue;
-
-        const { data: downloadData, error: downloadError } = await supabase.storage
-          .from('contractor-docs')
-          .download(doc.storage_reference);
-
-        if (downloadError) {
-          console.error('Download error:', downloadError);
-          continue;
-        }
-
-        const arrayBuffer = await downloadData.arrayBuffer();
-        const fileBuffer = Buffer.from(arrayBuffer);
-
-        let mimeType = 'application/pdf';
-        const fileName = String(doc.file_name || '').toLowerCase();
-
-        if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
-          mimeType = 'image/jpeg';
-        } else if (fileName.endsWith('.png')) {
-          mimeType = 'image/png';
-        } else if (fileName.endsWith('.webp')) {
-          mimeType = 'image/webp';
-        }
-
-        const analysis = await analyzeDocumentWithGoogle(doc, fileBuffer, mimeType);
-
-        results.push({
-          document_id: doc.id,
-          file_name: doc.file_name,
-          suggested: {
-            entry_type: doc.document_type === 'invoice' ? 'income' : 'expense',
-            amount: analysis.amount || '0.00',
-            entry_date: analysis.entry_date || new Date().toISOString().slice(0, 10),
-            category: analysis.category || 'Uncategorized',
-            description: analysis.description || 'Draft created from document analysis',
-            vendor_or_payor: analysis.vendor_or_payor || '',
-            confidence: analysis.confidence || 'low'
-          }
-        });
-
-      } catch (err) {
-        console.error('Batch analyze error:', err);
-      }
+   for (const doc of documents) {
+  try {
+    if (!doc.storage_reference) {
+      results.push({
+        document_id: doc.id,
+        file_name: doc.file_name,
+        document_type: doc.document_type || 'other',
+        status: 'error',
+        error: 'Document has no storage reference'
+      });
+      continue;
     }
 
-    res.json({
-      total: results.length,
-      results
+    const { data: downloadData, error: downloadError } = await supabase.storage
+      .from('contractor-docs')
+      .download(doc.storage_reference);
+
+    if (downloadError) {
+      console.error('Download error:', downloadError);
+
+      results.push({
+        document_id: doc.id,
+        file_name: doc.file_name,
+        document_type: doc.document_type || 'other',
+        status: 'error',
+        error: downloadError.message || 'Download failed'
+      });
+      continue;
+    }
+
+    const arrayBuffer = await downloadData.arrayBuffer();
+    const fileBuffer = Buffer.from(arrayBuffer);
+
+    let mimeType = 'application/pdf';
+    const fileName = String(doc.file_name || '').toLowerCase();
+
+    if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+      mimeType = 'image/jpeg';
+    } else if (fileName.endsWith('.png')) {
+      mimeType = 'image/png';
+    } else if (fileName.endsWith('.webp')) {
+      mimeType = 'image/webp';
+    }
+
+    const analysis = await analyzeDocumentWithGoogle(doc, fileBuffer, mimeType);
+
+    await pool.query(
+      `
+      UPDATE documents
+      SET
+        category = COALESCE($1, category)
+      WHERE id = $2
+      `,
+      [
+        analysis.category || 'Uncategorized',
+        doc.id
+      ]
+    );
+
+    const refreshedDocResult = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE id = $1
+      `,
+      [doc.id]
+    );
+
+    const refreshedDoc = refreshedDocResult.rows[0] || doc;
+
+    results.push({
+      document_id: refreshedDoc.id,
+      file_name: refreshedDoc.file_name,
+      document_type: refreshedDoc.document_type || 'other',
+      category: refreshedDoc.category || analysis.category || 'Uncategorized',
+      status: 'success',
+      suggested: {
+        entry_type: refreshedDoc.document_type === 'invoice' ? 'income' : 'expense',
+        amount: analysis.amount || '0.00',
+        entry_date: analysis.entry_date || new Date().toISOString().slice(0, 10),
+        category: analysis.category || 'Uncategorized',
+        description: analysis.description || 'Draft created from document analysis',
+        vendor_or_payor: analysis.vendor_or_payor || '',
+        confidence: analysis.confidence || 'low'
+      }
     });
+
+  } catch (err) {
+    console.error('Batch analyze error:', err);
+
+    results.push({
+      document_id: doc.id,
+      file_name: doc.file_name,
+      document_type: doc.document_type || 'other',
+      status: 'error',
+      error: err.message || 'Batch analysis failed'
+    });
+  }
+}
+
+const successCount = results.filter(r => r.status === 'success').length;
+const errorCount = results.filter(r => r.status === 'error').length;
+
+res.json({
+  total: results.length,
+  success_count: successCount,
+  error_count: errorCount,
+  results
+});
 
   } catch (err) {
     console.error('Batch route error:', err);
