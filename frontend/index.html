@@ -882,6 +882,9 @@ async function analyzeBatchDocuments(contractorId) {
 
     // Store all drafts
     data.results.forEach(result => {
+      if (result.status !== "success") return;
+      
+      
       analysisDrafts[result.document_id] = {
         entry_type: result.suggested.entry_type || "expense",
         amount: result.suggested.amount || "0.00",
@@ -893,7 +896,7 @@ async function analyzeBatchDocuments(contractorId) {
       };
     });
 
-    alert(`${data.success_count} succeeded, ${data.error_count} failed`);alert(`Analyzed ${data.total} documents`);
+    alert(`${data.success_count} succeeded, ${data.error_count} failed`);
 
     loadDocuments(contractorId);
 
