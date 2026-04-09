@@ -1464,6 +1464,52 @@ app.get('/api/documents/file/:documentId', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.delete('/api/documents/:documentId', async (req, res) => {
+  try {
+    const { documentId } = req.params;
+
+    const docResult = await pool.query(
+      `
+      SELECT *
+      FROM documents
+      WHERE id = $1
+      `,
+      [documentId]
+    );
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const doc = docResult.rows[0];
+
+    if (doc.storage_reference) {
+      const { error: storageError } = await supabase.storage
+        .from('contractor-docs')
+        .remove([doc.storage_reference]);
+
+      if (storageError) {
+        console.error('Supabase delete error:', storageError);
+        return res.status(500).json({ error: storageError.message });
+      }
+    }
+
+    await pool.query(
+      `
+      DELETE FROM documents
+      WHERE id = $1
+      `,
+      [documentId]
+    );
+
+    res.json({ success: true, deleted_document_id: documentId });
+  } catch (err) {
+    console.error('Delete document error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get('/api/contractor-portal/file/:documentId', async (req, res) => {
   try {
     const { token } = req.query;
