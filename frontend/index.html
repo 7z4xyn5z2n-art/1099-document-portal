@@ -811,6 +811,29 @@
     alert("Unable to save notes");
   }
 }  
+
+    async function deleteDocument(documentId, contractorId) {
+  const confirmed = confirm("Delete this document permanently?");
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId, {
+      method: "DELETE"
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to delete document");
+      return;
+    }
+
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Delete document error:", err);
+    alert("Unable to delete document");
+  }
+}
     
     async function analyzeDocument(documentId, contractorId) {
         analyzingDocs[documentId] = true;
@@ -1149,6 +1172,10 @@ categoryGroups.forEach(categoryGroup => {
             </button>
 
             <button onclick="createEntryFromDoc('${doc.id}')">Manual Entry</button>
+
+            <button onclick="deleteDocument('${doc.id}', '${contractorId}')">
+              Delete
+            </button>
           </div>
         </div>
 
