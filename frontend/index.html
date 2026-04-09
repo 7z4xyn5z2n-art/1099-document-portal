@@ -893,7 +893,7 @@ async function analyzeBatchDocuments(contractorId) {
       };
     });
 
-    alert(`Analyzed ${data.total} documents`);
+    alert(`${data.success_count} succeeded, ${data.error_count} failed`);alert(`Analyzed ${data.total} documents`);
 
     loadDocuments(contractorId);
 
