@@ -42,6 +42,42 @@ const upload = multer({
     fileSize: 15 * 1024 * 1024
   }
 });
+
+/*
+  AUTH MIDDLEWARE
+*/
+
+async function requireStaffAuth(req, res, next) {
+  try {
+    const userId = req.headers['x-user-id'];
+
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized: missing user id' });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM staff_users
+      WHERE id = $1
+        AND is_active = true
+      `,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Unauthorized: invalid user' });
+    }
+
+    req.staffUser = result.rows[0];
+
+    next();
+  } catch (err) {
+    console.error('Auth middleware error:', err);
+    res.status(500).json({ error: err.message });
+  }
+}
+
 function generateAccessToken() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -475,7 +511,7 @@ app.post('/api/staff/login', async (req, res) => {
 /*
   CONTRACTORS
 */
-app.post('/api/contractors', async (req, res) => {
+app.post('/api/contractors', requireStaffAuth, async (req, res) => {
   const {
     contractor_name,
     business_name,
@@ -517,7 +553,7 @@ app.post('/api/contractors', async (req, res) => {
   }
 });
 
-app.get('/api/contractors', async (req, res) => {
+app.get('/api/contractors', requireStaffAuth, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT *
@@ -532,7 +568,7 @@ app.get('/api/contractors', async (req, res) => {
   }
 });
                       
-app.get('/api/contractors/:id', async (req, res) => {
+app.get('/api/contractors/:id', requireStaffAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM contractors WHERE id = $1`,
@@ -550,7 +586,7 @@ app.get('/api/contractors/:id', async (req, res) => {
   }
 });
 
-app.post('/api/contractors/:id/access-link', async (req, res) => {
+app.post('/api/contractors/:id/access-link', requireStaffAuth, async (req, res) => {
   try {
     const contractorId = req.params.id;
     const { created_by } = req.body || {};
@@ -1366,7 +1402,7 @@ app.get('/api/reports/:contractorId', async (req, res) => {
 /*
   DOCUMENT UPLOAD (REAL FILE STORAGE)
 */
-app.post('/api/documents', upload.single('file'), async (req, res) => {
+app.post('/api/documents', requireStaffAuth, upload.single('file'), async (req, res) => {
   try {
     const {
       contractor_id,
@@ -1441,7 +1477,7 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 /*
   GET DOCUMENTS FOR CONTRACTOR
 */
-app.get('/api/documents/:contractorId', async (req, res) => {
+app.get('/api/documents/:contractorId', requireStaffAuth, async (req, res) => {
   try {
     const result = await pool.query(
       `
@@ -1624,7 +1660,7 @@ app.get('/api/documents/file/:documentId', async (req, res) => {
   }
 });
 
-app.delete('/api/documents/:documentId', async (req, res) => {
+app.delete('/api/documents/:documentId', requireStaffAuth, async (req, res) => {
   try {
     const { documentId } = req.params;
 
