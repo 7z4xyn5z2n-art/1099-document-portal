@@ -408,6 +408,16 @@
   </style>
 </head>
 <body>
+  <div id="loginContainer" style="max-width:400px;margin:60px auto;padding:20px;border:1px solid #ddd;border-radius:8px;">
+  <h2>Staff Login</h2>
+
+  <input id="loginEmail" placeholder="Email" style="width:100%;margin-bottom:10px;padding:8px;" />
+  <input id="loginPassword" type="password" placeholder="Password" style="width:100%;margin-bottom:10px;padding:8px;" />
+
+  <button onclick="handleLogin()" style="width:100%;padding:10px;">Login</button>
+</div>
+
+  <div id="appContainer" style="display:none;">
   <div class="topbar">
     <h1>1099 Staff Portal</h1>
     <p>Internal contractor management, document collection, review workflow, and contractor portal access.</p>
@@ -549,6 +559,49 @@ function getAuthHeaders(extraHeaders = {}) {
   } catch (err) {
     console.error("Login error:", err);
     alert("Login failed");
+  }
+}
+
+async function handleLogin() {
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
+
+  if (!email || !password) {
+    alert("Enter email and password");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Login failed");
+      return;
+    }
+
+    // store user (you already built this earlier)
+    setStoredStaffUser(data.user);
+
+    // hide login
+    document.getElementById("loginContainer").style.display = "none";
+
+    // show app
+    document.getElementById("appContainer").style.display = "block";
+
+    // load data
+    loadContractors();
+
+  } catch (err) {
+    console.error(err);
+    alert("Login error");
   }
 }
     
@@ -1515,7 +1568,19 @@ async function createEntryFromDoc(documentId) {
   }
 }
     
-loadContractors();
+(function initApp() {
+  const user = getStoredStaffUser();
+
+  if (user && user.id) {
+    document.getElementById("loginContainer").style.display = "none";
+    document.getElementById("appContainer").style.display = "block";
+    loadContractors();
+  } else {
+    document.getElementById("loginContainer").style.display = "block";
+    document.getElementById("appContainer").style.display = "none";
+  }
+})();
   </script>
+  </div>
 </body>
 </html>
