@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const multer = require('multer');
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 
 const app = express();
 let documentAiClient;
@@ -385,7 +386,91 @@ app.get('/setup-v2', async (req, res) => {
   }
 });
 
+/*
+  STAFF AUTH
+*/
 
+// Create staff user
+app.post('/api/staff/register', async (req, res) => {
+  try {
+    const { full_name, email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'email and password are required' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const result = await pool.query(
+      `
+      INSERT INTO staff_users (full_name, email, password_hash)
+      VALUES ($1, $2, $3)
+      RETURNING id, full_name, email
+      `,
+      [full_name || null, email.toLowerCase(), hashedPassword]
+    );
+
+    res.status(201).json({
+      message: 'Staff user created',
+      user: result.rows[0]
+    });
+   
+  } catch (err) {
+    console.error('Staff register error:', err);
+
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Staff login
+app.post('/api/staff/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'email and password are required' });
+    }
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM staff_users
+      WHERE email = $1
+        AND is_active = true
+      `,
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const user = result.rows[0];
+
+    const validPassword = await bcrypt.compare(password, user.password_hash);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    res.json({
+      message: 'Login successful',
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } catch (err) {
+    console.error('Staff login error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 /*
   CONTRACTORS
