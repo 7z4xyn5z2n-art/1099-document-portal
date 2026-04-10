@@ -440,7 +440,190 @@
   color: var(--gray);
   line-height: 1.45;
 }
+  .admin-panel {
+  grid-column: 1 / -1;
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #edf1f5;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fa 100%);
+}
+
+.admin-panel-header h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  color: #1f2d3a;
+}
+
+.admin-panel-header p {
+  margin: 0;
+  max-width: 780px;
+  color: #5b6978;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #eef8f0;
+  color: var(--green);
+  border: 1px solid #cfe7d4;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-panel-body {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 0;
+}
+
+.admin-create-column {
+  padding: 24px;
+  border-right: 1px solid #edf1f5;
+  background: #fcfdff;
+}
+
+.admin-directory-column {
+  padding: 24px;
+  background: #fff;
+}
+
+.admin-subtitle {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #243443;
+}
+
+.admin-form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.admin-toggle-btn {
+  background: #ffffff;
+  color: #243443;
+  border: 1px solid #dbe3ea;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-toggle-btn:hover {
+  background: #f8fafc;
+}
     
+.staff-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.staff-card {
+  border: 1px solid #e6ecf2;
+  border-left: 6px solid var(--green);
+  border-radius: 16px;
+  padding: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  transition: all 0.2s ease;
+}
+
+.staff-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.staff-card.inactive {
+  border-left-color: var(--red);
+  background: #fffdfd;
+}
+
+.staff-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.staff-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2b3c;
+  margin-bottom: 4px;
+  letter-spacing: 0.2px;
+}
+
+.staff-email {
+  font-size: 13px;
+  color: #6b7a8c;
+}
+
+.staff-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #425466;
+}
+
+.staff-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.staff-status-pill.active {
+  background: #eef8f0;
+  color: var(--green);
+  border-color: #cfe7d4;
+}
+
+.staff-status-pill.inactive {
+  background: #fff1f1;
+  color: var(--red);
+  border-color: #f2caca;
+}
+
+@media (max-width: 1100px) {
+  .admin-panel-body {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-create-column {
+    border-right: none;
+    border-bottom: 1px solid #edf1f5;
+  }
+
+  .staff-directory-grid {
+    grid-template-columns: 1fr;
+  }
+}  
     @media (max-width: 900px) {
       .grid {
         grid-template-columns: 1fr;
@@ -510,49 +693,66 @@
 
   <div class="page">
     <div class="grid">
-      <div id="adminPanel" class="panel" style="display:none;">
-  <h2>Executive Admin</h2>
-  <p>Create staff users, assign access levels, and manage active staff accounts.</p>
-
-  <div class="field-group">
+      <div id="adminPanel" class="panel admin-panel" style="display:none;">
+    <div class="admin-panel-header">
     <div>
-      <label for="staffFullName">Full Name</label>
-      <input id="staffFullName" placeholder="Enter staff full name" />
+      <h2>Executive Admin</h2>
+      <p>Create staff users, manage access levels, and oversee active staff accounts from one clean control area.</p>
     </div>
-
-    <div>
-      <label for="staffEmail">Email</label>
-      <input id="staffEmail" placeholder="Enter staff email" />
-    </div>
-
-    <div>
-      <label for="staffPassword">Temporary Password</label>
-      <input id="staffPassword" type="password" placeholder="Enter temporary password" />
-    </div>
-
-    <div>
-      <label for="staffRole">Role</label>
-      <select id="staffRole">
-        <option value="staff">Staff</option>
-        <option value="manager">Manager</option>
-        <option value="admin">Admin</option>
-      </select>
-    </div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+  <div class="admin-badge">Admin Access</div>
+  <button class="admin-toggle-btn" onclick="toggleAdminSection()" id="adminToggleBtn">
+    Hide Admin Tools
+  </button>
+</div>
   </div>
 
-  <div class="actions">
-    <button class="primary-btn" onclick="createStaffUser()">Create Staff User</button>
-    <button class="secondary-btn" onclick="loadStaffUsers()">Refresh Staff List</button>
-  </div>
+  <div class="admin-panel-body" id="adminPanelBody">
+    <div class="admin-create-column">
+      <div class="admin-subtitle">Create Staff User</div>
 
-  <div id="adminStatusBox" class="status"></div>
+      <div class="admin-form-grid">
+        <div>
+          <label for="staffFullName">Full Name</label>
+          <input id="staffFullName" placeholder="Enter staff full name" />
+        </div>
 
-  <div class="section-block">
-    <div class="section-title">Staff Directory</div>
-    <div id="staffUsersWrap" class="loading">Loading staff users...</div>
+        <div>
+          <label for="staffEmail">Email</label>
+          <input id="staffEmail" placeholder="Enter staff email" />
+        </div>
+
+        <div>
+          <label for="staffPassword">Temporary Password</label>
+          <input id="staffPassword" type="password" placeholder="Enter temporary password" />
+        </div>
+
+        <div>
+          <label for="staffRole">Role</label>
+          <select id="staffRole">
+            <option value="staff">Staff</option>
+            <option value="manager">Manager</option>
+            <option value="admin">Admin</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="admin-actions">
+        <button class="primary-btn" onclick="createStaffUser()">Create Staff User</button>
+        <button class="secondary-btn" onclick="loadStaffUsers()">Refresh Staff List</button>
+      </div>
+
+      <div id="adminStatusBox" class="status"></div>
+    </div>
+
+    <div class="admin-directory-column">
+      <div class="admin-subtitle">Staff Directory</div>
+      <div id="staffUsersWrap" class="loading">Loading staff users...</div>
+    </div>
   </div>
 </div>
-      <div class="panel">
+
+       <div class="panel">
         <h2>Create Contractor</h2>
         <p>Add a contractor record to begin collecting documents, entries, and monthly reporting data.</p>
 
@@ -1757,26 +1957,31 @@ async function loadStaffUsers() {
       return;
     }
 
-    wrap.className = "";
+    wrap.className = "staff-directory-grid";
     wrap.innerHTML = data.map(user => `
-      <div class="contractor-card" style="border-left-color:${user.is_active ? '#1b5e20' : '#c62828'};">
-        <div class="contractor-header">
+      <div class="staff-card ${user.is_active ? "" : "inactive"}">
+        <div class="staff-card-top">
           <div>
-            <div class="contractor-name">${escapeHtml(user.full_name || "Unnamed Staff")}</div>
-            <div class="contractor-subtext">${escapeHtml(user.email || "")}</div>
+            <div class="staff-name">${escapeHtml(user.full_name || "Unnamed Staff")}</div>
+            <div class="staff-email">${escapeHtml(user.email || "")}</div>
           </div>
 
-          <div class="card-toolbar">
-            <button class="${user.is_active ? 'soft-btn' : 'secondary-btn'}"
-              onclick="toggleStaffActive('${user.id}', ${!user.is_active})">
-              ${user.is_active ? 'Deactivate' : 'Activate'}
-            </button>
-          </div>
+          <button
+            class="${user.is_active ? 'soft-btn' : 'secondary-btn'}"
+            onclick="toggleStaffActive('${user.id}', ${!user.is_active})"
+          >
+            ${user.is_active ? 'Deactivate' : 'Activate'}
+          </button>
         </div>
 
-        <div class="contractor-meta">
+        <div style="margin-top:12px;">
+          <span class="staff-status-pill ${user.is_active ? 'active' : 'inactive'}">
+            ${user.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        <div class="staff-meta-grid">
           <div><span class="meta-label">Role:</span> ${escapeHtml(user.role || "staff")}</div>
-          <div><span class="meta-label">Status:</span> ${user.is_active ? 'Active' : 'Inactive'}</div>
           <div><span class="meta-label">Created:</span> ${new Date(user.created_at).toLocaleDateString()}</div>
         </div>
       </div>
@@ -1786,7 +1991,8 @@ async function loadStaffUsers() {
     wrap.className = "";
     wrap.innerHTML = `<div class="contractors-empty">Could not connect to load staff users.</div>`;
   }
-}
+}  
+    
 async function createStaffUser() {
   const full_name = document.getElementById("staffFullName").value.trim();
   const email = document.getElementById("staffEmail").value.trim();
@@ -1877,7 +2083,7 @@ async function toggleStaffActive(staffId, makeActive) {
     box.textContent = makeActive
       ? "Staff user activated."
       : "Staff user deactivated.";
-
+ 
     loadStaffUsers();
   } catch (err) {
     console.error("Toggle staff active error:", err);
@@ -1885,15 +2091,37 @@ async function toggleStaffActive(staffId, makeActive) {
     box.textContent = "Could not update staff status.";
   }
 }
-    
+
+function toggleAdminSection() {
+  const body = document.getElementById("adminPanelBody");
+  const btn = document.getElementById("adminToggleBtn");
+
+  if (!body || !btn) return;
+
+  const isHidden = body.style.display === "none";
+
+  body.style.display = isHidden ? "grid" : "none";
+  btn.textContent = isHidden ? "Hide Admin Tools" : "Show Admin Tools";
+
+  if (isHidden) {
+    loadStaffUsers();
+  }
+}
+
 function initAdminPanel() {
   const user = getStoredStaffUser();
 
   if (user && user.role === "admin") {
-    document.getElementById("adminPanel").style.display = "block";
-    loadStaffUsers();
+    const panel = document.getElementById("adminPanel");
+    const body = document.getElementById("adminPanelBody");
+    const btn = document.getElementById("adminToggleBtn");
+
+    if (panel) panel.style.display = "block";
+    if (body) body.style.display = "none";
+    if (btn) btn.textContent = "Show Admin Tools";
   }
-}    
+}
+    
 (function initApp() {
   const user = getStoredStaffUser();
 
