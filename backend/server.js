@@ -1835,6 +1835,67 @@ app.get('/api/contractor-portal/file/:documentId', async (req, res) => {
   }
 });
 
+app.get('/seed-first-admin', async (req, res) => {
+  try {
+    const email = 'meridabiz@gmail.com';
+    const password = 'Fruitful2026!';
+    const fullName = 'Quay Merida';
+
+    const existing = await pool.query(
+      `
+      SELECT id, email, role
+      FROM staff_users
+      WHERE email = $1
+      `,
+      [email.toLowerCase()]
+    );
+
+    if (existing.rows.length > 0) {
+      const updated = await pool.query(
+        `
+        UPDATE staff_users
+        SET role = 'admin',
+            is_active = true,
+            updated_at = NOW()
+        WHERE email = $1
+        RETURNING id, email, role, is_active
+        `,
+        [email.toLowerCase()]
+      );
+
+      return res.json({
+        message: 'Existing user promoted to admin',
+        user: updated.rows[0]
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const inserted = await pool.query(
+      `
+      INSERT INTO staff_users (
+        full_name,
+        email,
+        password_hash,
+        role,
+        is_active
+      )
+      VALUES ($1, $2, $3, 'admin', true)
+      RETURNING id, full_name, email, role, is_active
+      `,
+      [fullName, email.toLowerCase(), hashedPassword]
+    );
+
+    res.json({
+      message: 'First admin created',
+      user: inserted.rows[0],
+      temporary_password: password
+    });
+  } catch (err) {
+    console.error('Seed first admin error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
