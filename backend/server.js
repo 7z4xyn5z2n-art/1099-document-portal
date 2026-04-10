@@ -78,6 +78,18 @@ async function requireStaffAuth(req, res, next) {
   }
 }
 
+function requireAdmin(req, res, next) {
+  if (!req.staffUser) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  if (req.staffUser.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  next();
+}
+
 function generateAccessToken() {
   return crypto.randomBytes(32).toString('hex');
 }
@@ -427,9 +439,9 @@ app.get('/setup-v2', async (req, res) => {
 */
 
 // Create staff user
-app.post('/api/staff/register', async (req, res) => {
+app.post('/api/staff/register', requireStaffAuth, requireAdmin, async (req, res) => {
   try {
-    const { full_name, email, password } = req.body;
+    const { full_name, email, password, role, is_active } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' });
@@ -437,14 +449,23 @@ app.post('/api/staff/register', async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await pool.query(
-      `
-      INSERT INTO staff_users (full_name, email, password_hash)
-      VALUES ($1, $2, $3)
-      RETURNING id, full_name, email
-      `,
-      [full_name || null, email.toLowerCase(), hashedPassword]
-    );
+const allowedRoles = ['admin', 'manager', 'staff'];
+const safeRole = allowedRoles.includes(role) ? role : 'staff';
+
+const result = await pool.query(
+  `
+  INSERT INTO staff_users (full_name, email, password_hash, role, is_active)
+  VALUES ($1, $2, $3, $4, $5)
+  RETURNING id, full_name, email, role, is_active, created_at
+  `,
+  [
+    full_name || null,
+    email.toLowerCase(),
+    hashedPassword,
+    safeRole,
+    is_active === false ? false : true
+  ]
+);
 
     res.status(201).json({
       message: 'Staff user created',
@@ -458,6 +479,53 @@ app.post('/api/staff/register', async (req, res) => {
       return res.status(400).json({ error: 'Email already exists' });
     }
 
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/staff', requireStaffAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      SELECT id, full_name, email, role, is_active, created_at
+      FROM staff_users
+      ORDER BY created_at DESC
+      `
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('List staff users error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+app.patch('/api/staff/:id/toggle-active', requireStaffAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { is_active } = req.body;
+
+    if (typeof is_active !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be true or false' });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE staff_users
+      SET is_active = $1,
+          updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, full_name, email, role, is_active
+      `,
+      [is_active, id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Staff user not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Toggle staff active error:', err);
     res.status(500).json({ error: err.message });
   }
 });
