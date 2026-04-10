@@ -380,6 +380,67 @@
       font-size: 13px;
     }
 
+    .login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f7 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.login-card-top {
+  background: linear-gradient(90deg, var(--green) 0%, #6c5d15 45%, var(--red) 100%);
+  color: var(--white);
+  padding: 22px 24px;
+}
+
+.login-card-top h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.login-card-top p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  opacity: 0.95;
+  line-height: 1.4;
+}
+
+.login-card-body {
+  padding: 22px 24px 24px;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--green);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-note {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--gray);
+  line-height: 1.45;
+}
+    
     @media (max-width: 900px) {
       .grid {
         grid-template-columns: 1fr;
@@ -408,13 +469,29 @@
   </style>
 </head>
 <body>
-  <div id="loginContainer" style="max-width:400px;margin:60px auto;padding:20px;border:1px solid #ddd;border-radius:8px;">
-  <h2>Staff Login</h2>
+  <div id="loginContainer" class="login-shell">
+  <div class="login-card">
+    
+    <div class="login-card-top">
+      <h2>1099 Staff Portal</h2>
+      <p>Secure access for contractor management, document review, and financial workflows.</p>
+    </div>
 
-  <input id="loginEmail" placeholder="Email" style="width:100%;margin-bottom:10px;padding:8px;" />
-  <input id="loginPassword" type="password" placeholder="Password" style="width:100%;margin-bottom:10px;padding:8px;" />
+    <div class="login-card-body">
+      <input id="loginEmail" placeholder="Email" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;border:1px solid #dbe3ea;" />
+      
+      <input id="loginPassword" type="password" placeholder="Password"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();handleLogin();}"
+        style="width:100%;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #dbe3ea;" />
 
-  <button onclick="handleLogin()" style="width:100%;padding:10px;">Login</button>
+      <button onclick="handleLogin()" class="login-btn">Login</button>
+
+      <div class="login-note">
+        Internal use only. All access is monitored and logged for security.
+      </div>
+    </div>
+
+  </div>
 </div>
 
   <div id="appContainer" style="display:none;">
