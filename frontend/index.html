@@ -418,10 +418,18 @@
 </div>
 
   <div id="appContainer" style="display:none;">
-  <div class="topbar">
+ <div class="topbar" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+  <div>
     <h1>1099 Staff Portal</h1>
     <p>Internal contractor management, document collection, review workflow, and contractor portal access.</p>
   </div>
+
+  <div>
+    <button onclick="handleLogout()" style="background:#ffffff; color:#1b5e20; border:1px solid #d9dee5; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;">
+      Logout
+    </button>
+  </div>
+</div>
 
   <div class="page">
     <div class="grid">
@@ -498,11 +506,23 @@ function getStoredStaffUser() {
 function setStoredStaffUser(user) {
   localStorage.setItem(STAFF_USER_STORAGE_KEY, JSON.stringify(user));
 }
-
+  
 function clearStoredStaffUser() {
   localStorage.removeItem(STAFF_USER_STORAGE_KEY);
 }
 
+function handleLogout() {
+  clearStoredStaffUser();
+
+  document.getElementById("appContainer").style.display = "none";
+  document.getElementById("loginContainer").style.display = "block";
+
+  document.getElementById("loginEmail").value = "";
+  document.getElementById("loginPassword").value = "";
+
+  alert("Logged out successfully");
+}
+    
 function getAuthHeaders(extraHeaders = {}) {
   const staffUser = getStoredStaffUser();
 
