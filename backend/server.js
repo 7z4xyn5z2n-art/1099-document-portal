@@ -360,7 +360,22 @@ app.get('/setup-v2', async (req, res) => {
         is_active BOOLEAN NOT NULL DEFAULT true,
         created_by TEXT,
         created_at TIMESTAMP DEFAULT NOW()
-      );  
+      );
+
+      CREATE TABLE IF NOT EXISTS staff_users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        full_name TEXT,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'staff',
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+
+      ALTER TABLE contractors
+        ADD COLUMN IF NOT EXISTS staff_user_id UUID REFERENCES staff_users(id) ON DELETE SET NULL;
+      
     `);
 
     res.json({ message: 'Database setup v2 complete (clean)' });
@@ -369,6 +384,8 @@ app.get('/setup-v2', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+
 
 /*
   CONTRACTORS
