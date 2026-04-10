@@ -730,6 +730,7 @@ function getAuthHeaders(extraHeaders = {}) {
 
           const res = await fetch(API + "/api/documents", {
             method: "POST",
+            headers: getAuthHeaders(),
             body: formData
           });
 
@@ -782,7 +783,9 @@ function getAuthHeaders(extraHeaders = {}) {
 
     async function openDocument(documentId) {
       try {
-        const res = await fetch(API + "/api/documents/file/" + documentId);
+        const res = await fetch(API + "/api/documents/file/" + documentId, {
+          headers: getAuthHeaders()
+        });
         const data = await res.json();
 
         if (!res.ok) {
@@ -801,9 +804,9 @@ function getAuthHeaders(extraHeaders = {}) {
       try {
         const res = await fetch(API + "/api/documents/" + documentId + "/review-status", {
           method: "PATCH",
-          headers: {
+          headers: getAuthHeaders({
             "Content-Type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             review_status: reviewStatus,
             reviewed_by: "Staff"
@@ -827,9 +830,9 @@ function getAuthHeaders(extraHeaders = {}) {
   try {
      const res = await fetch(API + "/api/documents/" + documentId, {
       method: "PATCH",
-      headers: {
+      headers: getAuthHeaders({
         "Content-Type": "application/json"
-      },
+      }),
       body: JSON.stringify({
         document_type: documentType || undefined,
         category: category || undefined,
@@ -859,9 +862,9 @@ function getAuthHeaders(extraHeaders = {}) {
 
     const res = await fetch(API + "/api/documents/" + documentId, {
       method: "PATCH",
-      headers: {
+      headers: getAuthHeaders({
         "Content-Type": "application/json"
-      },
+      }),
       body: JSON.stringify({
         notes: notes
       })
@@ -887,7 +890,8 @@ function getAuthHeaders(extraHeaders = {}) {
 
   try {
     const res = await fetch(API + "/api/documents/" + documentId, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: getAuthHeaders()
     });
 
     const data = await res.json();
@@ -910,9 +914,9 @@ function getAuthHeaders(extraHeaders = {}) {
   try {
     const res = await fetch(API + "/api/documents/" + documentId + "/analyze", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      }
+     headers: getAuthHeaders({
+      "Content-Type": "application/json"
+      })
     });
 
     const data = await res.json();
@@ -939,7 +943,8 @@ async function analyzeBatchDocuments(contractorId) {
     alert("Analyzing all documents... this may take a few seconds");
 
     const res = await fetch(API + "/api/documents/analyze-batch/" + contractorId, {
-      method: "POST"
+      method: "POST",
+      headers: getAuthHeaders()
     });
 
     const data = await res.json();
@@ -1001,9 +1006,9 @@ async function confirmAnalyzedEntry(documentId, contractorId) {
   try {
     const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
       method: "POST",
-      headers: {
+      headers: getAuthHeaders({
         "Content-Type": "application/json"
-      },
+      }),
       body: JSON.stringify({
         entry_type: entryType,
         entry_date: entryDate,
@@ -1089,7 +1094,9 @@ function renderAnalysisDraft(documentId, contractorId, draft) {
 }
     async function loadDocuments(contractorId) {
        try {
-        const res = await fetch(API + "/api/documents/" + contractorId);
+        const res = await fetch(API + "/api/documents/" + contractorId, {
+                            headers: getAuthHeaders()
+                          })
         const data = await res.json();
 
         const div = document.getElementById("docs-" + contractorId);
@@ -1479,9 +1486,9 @@ async function createEntryFromDoc(documentId) {
   try {
     const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
       method: "POST",
-      headers: {
+      headers: getAuthHeaders({
         "Content-Type": "application/json"
-      },
+      }),
       body: JSON.stringify({
         entry_type: "expense",
         entry_date: entryDateInput,
