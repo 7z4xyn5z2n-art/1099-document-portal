@@ -537,6 +537,28 @@ function getAuthHeaders(extraHeaders = {}) {
       let openFolders = {};
       let openMonthFolders = {};
       let openCategoryFolders = {};
+      const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+      let idleTimeoutHandle = null;
+    function resetIdleTimer() {
+  if (idleTimeoutHandle) {
+    clearTimeout(idleTimeoutHandle);
+  }
+
+  idleTimeoutHandle = setTimeout(() => {
+    handleLogout();
+    alert("You were logged out due to inactivity");
+  }, IDLE_TIMEOUT_MS);
+}
+
+function startIdleTracking() {
+  const events = ["mousemove", "keydown", "click", "scroll"];
+
+  events.forEach(event => {
+    document.addEventListener(event, resetIdleTimer);
+  });
+
+  resetIdleTimer();
+}
     function showStatus(message, type) {
       const box = document.getElementById("statusBox");
       box.className = "status " + type;
@@ -1595,6 +1617,7 @@ async function createEntryFromDoc(documentId) {
     document.getElementById("loginContainer").style.display = "none";
     document.getElementById("appContainer").style.display = "block";
     loadContractors();
+    startIdleTracking();
   } else {
     document.getElementById("loginContainer").style.display = "block";
     document.getElementById("appContainer").style.display = "none";
