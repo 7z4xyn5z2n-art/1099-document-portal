@@ -537,7 +537,7 @@ function getAuthHeaders(extraHeaders = {}) {
       let openFolders = {};
       let openMonthFolders = {};
       let openCategoryFolders = {};
-      const IDLE_TIMEOUT_MS = 10 * 1000;
+      const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
       let idleTimeoutHandle = null;
     function resetIdleTimer() {
   if (idleTimeoutHandle) {
