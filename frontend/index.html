@@ -510,6 +510,48 @@
 
   <div class="page">
     <div class="grid">
+      <div id="adminPanel" class="panel" style="display:none;">
+  <h2>Executive Admin</h2>
+  <p>Create staff users, assign access levels, and manage active staff accounts.</p>
+
+  <div class="field-group">
+    <div>
+      <label for="staffFullName">Full Name</label>
+      <input id="staffFullName" placeholder="Enter staff full name" />
+    </div>
+
+    <div>
+      <label for="staffEmail">Email</label>
+      <input id="staffEmail" placeholder="Enter staff email" />
+    </div>
+
+    <div>
+      <label for="staffPassword">Temporary Password</label>
+      <input id="staffPassword" type="password" placeholder="Enter temporary password" />
+    </div>
+
+    <div>
+      <label for="staffRole">Role</label>
+      <select id="staffRole">
+        <option value="staff">Staff</option>
+        <option value="manager">Manager</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="primary-btn" onclick="createStaffUser()">Create Staff User</button>
+    <button class="secondary-btn" onclick="loadStaffUsers()">Refresh Staff List</button>
+  </div>
+
+  <div id="adminStatusBox" class="status"></div>
+
+  <div class="section-block">
+    <div class="section-title">Staff Directory</div>
+    <div id="staffUsersWrap" class="loading">Loading staff users...</div>
+  </div>
+</div>
       <div class="panel">
         <h2>Create Contractor</h2>
         <p>Add a contractor record to begin collecting documents, entries, and monthly reporting data.</p>
@@ -717,6 +759,8 @@ async function handleLogin() {
 
     // load data
     loadContractors();
+    initAdminPanel();
+    startIdleTracking();
 
   } catch (err) {
     console.error(err);
@@ -747,9 +791,9 @@ async function handleLogin() {
   try {
     const res = await fetch(API + "/api/contractors/" + contractorId + "/access-link", {
       method: "POST",
-      headers: {
+      headers: getAuthHeaders({
         "Content-Type": "application/json"
-      },
+      }),
       body: JSON.stringify({
         created_by: "Staff"
       })
@@ -773,9 +817,9 @@ async function handleLogin() {
   try {
     const res = await fetch(API + "/api/contractors/" + contractorId + "/access-link", {
       method: "POST",
-      headers: {
+      headers: getAuthHeaders({
         "Content-Type": "application/json"
-      },
+      }),
       body: JSON.stringify({
         created_by: "Staff"
       })
@@ -811,9 +855,9 @@ async function handleLogin() {
       try {
         const res = await fetch(API + "/api/contractors", {
           method: "POST",
-          headers: {
+          headers: getAuthHeaders({
             "Content-Type": "application/json"
-          },
+          }),
           body: JSON.stringify({
             contractor_name: name,
             email: email,
@@ -1686,7 +1730,170 @@ async function createEntryFromDoc(documentId) {
     alert("Error creating entry");
   }
 }
+
+async function loadStaffUsers() {
+  const wrap = document.getElementById("staffUsersWrap");
+  if (!wrap) return;
+
+  wrap.className = "loading";
+  wrap.textContent = "Loading staff users...";
+
+  try {
+    const res = await fetch(API + "/api/staff", {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      wrap.className = "";
+      wrap.innerHTML = `<div class="contractors-empty">Unable to load staff users.</div>`;
+      return;
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      wrap.className = "";
+      wrap.innerHTML = `<div class="contractors-empty">No staff users found.</div>`;
+      return;
+    }
+
+    wrap.className = "";
+    wrap.innerHTML = data.map(user => `
+      <div class="contractor-card" style="border-left-color:${user.is_active ? '#1b5e20' : '#c62828'};">
+        <div class="contractor-header">
+          <div>
+            <div class="contractor-name">${escapeHtml(user.full_name || "Unnamed Staff")}</div>
+            <div class="contractor-subtext">${escapeHtml(user.email || "")}</div>
+          </div>
+
+          <div class="card-toolbar">
+            <button class="${user.is_active ? 'soft-btn' : 'secondary-btn'}"
+              onclick="toggleStaffActive('${user.id}', ${!user.is_active})">
+              ${user.is_active ? 'Deactivate' : 'Activate'}
+            </button>
+          </div>
+        </div>
+
+        <div class="contractor-meta">
+          <div><span class="meta-label">Role:</span> ${escapeHtml(user.role || "staff")}</div>
+          <div><span class="meta-label">Status:</span> ${user.is_active ? 'Active' : 'Inactive'}</div>
+          <div><span class="meta-label">Created:</span> ${new Date(user.created_at).toLocaleDateString()}</div>
+        </div>
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("Load staff users error:", err);
+    wrap.className = "";
+    wrap.innerHTML = `<div class="contractors-empty">Could not connect to load staff users.</div>`;
+  }
+}
+async function createStaffUser() {
+  const full_name = document.getElementById("staffFullName").value.trim();
+  const email = document.getElementById("staffEmail").value.trim();
+  const password = document.getElementById("staffPassword").value;
+  const role = document.getElementById("staffRole").value;
+
+  const box = document.getElementById("adminStatusBox");
+  box.className = "status";
+  box.textContent = "";
+
+  if (!email || !password) {
+    box.className = "status error";
+    box.textContent = "Email and temporary password are required.";
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/register", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        full_name,
+        email,
+        password,
+        role,
+        is_active: true
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      box.className = "status error";
+      box.textContent = data.error || "Unable to create staff user.";
+      return;
+    }
+
+    document.getElementById("staffFullName").value = "";
+    document.getElementById("staffEmail").value = "";
+    document.getElementById("staffPassword").value = "";
+    document.getElementById("staffRole").value = "staff";
+
+    box.className = "status success";
+    box.textContent = "Staff user created successfully.";
+
+    loadStaffUsers();
+  } catch (err) {
+    console.error("Create staff user error:", err);
+    box.className = "status error";
+    box.textContent = "Could not create staff user.";
+  }
+}
+async function toggleStaffActive(staffId, makeActive) {
+  const confirmed = confirm(
+    makeActive
+      ? "Activate this staff user?"
+      : "Deactivate this staff user?"
+  );
+
+  if (!confirmed) return;
+
+  const box = document.getElementById("adminStatusBox");
+  box.className = "status";
+  box.textContent = "";
+
+  try {
+    const res = await fetch(API + "/api/staff/" + staffId + "/toggle-active", {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        is_active: makeActive
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      box.className = "status error";
+      box.textContent = data.error || "Unable to update staff status.";
+      return;
+    }
+
+    box.className = "status success";
+    box.textContent = makeActive
+      ? "Staff user activated."
+      : "Staff user deactivated.";
+
+    loadStaffUsers();
+  } catch (err) {
+    console.error("Toggle staff active error:", err);
+    box.className = "status error";
+    box.textContent = "Could not update staff status.";
+  }
+}
     
+function initAdminPanel() {
+  const user = getStoredStaffUser();
+
+  if (user && user.role === "admin") {
+    document.getElementById("adminPanel").style.display = "block";
+    loadStaffUsers();
+  }
+}    
 (function initApp() {
   const user = getStoredStaffUser();
 
@@ -1694,6 +1901,7 @@ async function createEntryFromDoc(documentId) {
     document.getElementById("loginContainer").style.display = "none";
     document.getElementById("appContainer").style.display = "block";
     loadContractors();
+    initAdminPanel();
     startIdleTracking();
   } else {
     document.getElementById("loginContainer").style.display = "block";
