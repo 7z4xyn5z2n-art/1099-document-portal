@@ -473,6 +473,34 @@
 
   <script>
     const API = "https://one099-document-portal2.onrender.com";
+    const STAFF_USER_STORAGE_KEY = "staffUser";
+
+function getStoredStaffUser() {
+  try {
+    const raw = localStorage.getItem(STAFF_USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.error("Read stored staff user error:", err);
+    return null;
+  }
+}
+
+function setStoredStaffUser(user) {
+  localStorage.setItem(STAFF_USER_STORAGE_KEY, JSON.stringify(user));
+}
+
+function clearStoredStaffUser() {
+  localStorage.removeItem(STAFF_USER_STORAGE_KEY);
+}
+
+function getAuthHeaders(extraHeaders = {}) {
+  const staffUser = getStoredStaffUser();
+
+  return {
+    ...extraHeaders,
+    ...(staffUser && staffUser.id ? { "x-user-id": staffUser.id } : {})
+  };
+}
       let allContractors = [];
       let analysisDrafts = {};
       let analyzingDocs = {};
@@ -485,6 +513,45 @@
       box.textContent = message;
     }
 
+    async function staffLogin() {
+  const email = prompt("Enter email:");
+  const password = prompt("Enter password:");
+
+  if (!email || !password) {
+    alert("Email and password required");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Login failed");
+      return;
+    }
+
+    // 🔥 THIS is the key line
+    setStoredStaffUser(data.user);
+
+    alert("Login successful");
+
+    // reload contractors after login
+    loadContractors();
+
+  } catch (err) {
+    console.error("Login error:", err);
+    alert("Login failed");
+  }
+}
+    
     function clearStatus() {
       const box = document.getElementById("statusBox");
       box.className = "status";
@@ -607,7 +674,9 @@
   div.textContent = "Loading contractors...";
 
   try {
-    const res = await fetch(API + "/api/contractors");
+    const res = await fetch(API + "/api/contractors", {
+      headers: getAuthHeaders()
+    });
     const data = await res.json();
 
     if (!res.ok) {
