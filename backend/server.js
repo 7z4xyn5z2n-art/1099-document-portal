@@ -2085,6 +2085,44 @@ app.get('/api/contractor-portal/file/:documentId', async (req, res) => {
   }
 });
 
+app.get('/create-financial-table', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS financial_entries (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+
+        contractor_id UUID NOT NULL,
+        document_id UUID,
+
+        entry_type TEXT CHECK (entry_type IN ('income', 'expense')) NOT NULL,
+
+        category TEXT DEFAULT 'Uncategorized',
+
+        amount NUMERIC(12,2) NOT NULL,
+
+        entry_date DATE NOT NULL,
+
+        vendor_or_payor TEXT,
+        description TEXT,
+
+        source TEXT DEFAULT 'manual',
+
+        review_status TEXT DEFAULT 'draft',
+
+        created_by TEXT DEFAULT 'system',
+
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      );
+    `);
+
+    res.json({ message: 'financial_entries table created' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
   app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
