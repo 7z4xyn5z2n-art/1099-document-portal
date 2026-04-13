@@ -1008,16 +1008,13 @@ async function handleLogin() {
     // store user (you already built this earlier)
     setStoredStaffUser(data.user);
 
-    // hide login
-    document.getElementById("loginContainer").style.display = "none";
-
-    // show app
-    document.getElementById("appContainer").style.display = "block";
-
-    // load data
-    loadContractors();
-    initAdminPanel();
     startIdleTracking();
+
+    if (data.user.role === "admin") {
+      window.location.href = "admin.html";
+    } else {
+      window.location.href = "staff.html";
+    }
 
   } catch (err) {
     console.error(err);
