@@ -879,9 +879,13 @@ function getStoredStaffUser() {
 }
 
 function setStoredStaffUser(user) {
-  localStorage.setItem(STAFF_USER_STORAGE_KEY, JSON.stringify(user));
+  try {
+    localStorage.setItem(STAFF_USER_STORAGE_KEY, JSON.stringify(user));
+  } catch (err) {
+    console.error("Store staff user error:", err);
+  }
 }
-  
+
 function clearStoredStaffUser() {
   localStorage.removeItem(STAFF_USER_STORAGE_KEY);
 }
@@ -889,15 +893,30 @@ function clearStoredStaffUser() {
 function handleLogout() {
   clearStoredStaffUser();
 
-  document.getElementById("appContainer").style.display = "none";
-  document.getElementById("loginContainer").style.display = "block";
+  const appContainer = document.getElementById("appContainer");
+  const loginContainer = document.getElementById("loginContainer");
+  const loginEmail = document.getElementById("loginEmail");
+  const loginPassword = document.getElementById("loginPassword");
 
-  document.getElementById("loginEmail").value = "";
-  document.getElementById("loginPassword").value = "";
+  if (appContainer) {
+    appContainer.style.display = "none";
+  }
 
-  alert("Logged out successfully");
+  if (loginContainer) {
+    loginContainer.style.display = "block";
+  }
+
+  if (loginEmail) {
+    loginEmail.value = "";
+  }
+
+  if (loginPassword) {
+    loginPassword.value = "";
+  }
+
+  window.location.href = "index.html";
 }
-    
+
 function getAuthHeaders(extraHeaders = {}) {
   const staffUser = getStoredStaffUser();
 
@@ -906,16 +925,24 @@ function getAuthHeaders(extraHeaders = {}) {
     ...(staffUser && staffUser.id ? { "x-user-id": staffUser.id } : {})
   };
 }
-      let allContractors = [];
-      let staffDirectory = [];
-      let analysisDrafts = {};
-      let analyzingDocs = {};
-      let openFolders = {};
-      let openMonthFolders = {};
-      let openCategoryFolders = {};
-      const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
-      let idleTimeoutHandle = null;
-    function resetIdleTimer() {
+
+function logStoredStaffUser(context = "auth-check") {
+  const staffUser = getStoredStaffUser();
+  console.log(context, staffUser);
+  return staffUser;
+}
+
+let allContractors = [];
+let staffDirectory = [];
+let analysisDrafts = {};
+let analyzingDocs = {};
+let openFolders = {};
+let openMonthFolders = {};
+let openCategoryFolders = {};
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+let idleTimeoutHandle = null;
+
+function resetIdleTimer() {
   if (idleTimeoutHandle) {
     clearTimeout(idleTimeoutHandle);
   }
@@ -940,46 +967,6 @@ function startIdleTracking() {
       box.className = "status " + type;
       box.textContent = message;
     }
-
-    async function staffLogin() {
-  const email = prompt("Enter email:");
-  const password = prompt("Enter password:");
-
-  if (!email || !password) {
-    alert("Email and password required");
-    return;
-  }
-
-  try {
-    const res = await fetch(API + "/api/staff/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ email, password })
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.error || "Login failed");
-      return;
-    }
-
-    // 🔥 THIS is the key line
-    setStoredStaffUser(data.user);
-
-    alert("Login successful");
-
-    // reload contractors after login
-    loadContractors();
-
-  } catch (err) {
-    console.error("Login error:", err);
-    alert("Login failed");
-  }
-}
-
 async function handleLogin() {
   const email = document.getElementById("loginEmail").value;
   const password = document.getElementById("loginPassword").value;
@@ -1100,7 +1087,8 @@ async function handleLogin() {
       const phone = document.getElementById("phone").value.trim();
 
       clearStatus();
-
+      logStoredStaffUser("before createContractor fetch");
+      
       if (!name) {
         showStatus("Contractor name is required.", "error");
         return;
@@ -2307,17 +2295,25 @@ function initAdminPanel() {
   const user = getStoredStaffUser();
 
   if (user && user.id) {
-    document.getElementById("loginContainer").style.display = "none";
-    document.getElementById("appContainer").style.display = "block";
-    loadContractors();
-    initAdminPanel();
-    startIdleTracking();
-  } else {
-    document.getElementById("loginContainer").style.display = "block";
-    document.getElementById("appContainer").style.display = "none";
+    if (user.role === "admin") {
+      window.location.href = "admin.html";
+    } else {
+      window.location.href = "staff.html";
+    }
+    return;
+  }
+
+  const loginContainer = document.getElementById("loginContainer");
+  const appContainer = document.getElementById("appContainer");
+
+  if (loginContainer) {
+    loginContainer.style.display = "block";
+  }
+
+  if (appContainer) {
+    appContainer.style.display = "none";
   }
 })();
   </script>
-  </div>
 </body>
 </html>
