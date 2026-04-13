@@ -530,6 +530,63 @@ app.patch('/api/staff/:id/toggle-active', requireStaffAuth, requireAdmin, async 
   }
 });
 
+app.patch('/api/staff/:id', requireStaffAuth, requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      full_name,
+      email,
+      role,
+      phone
+    } = req.body;
+
+    const allowedRoles = ['admin', 'manager', 'staff'];
+
+    if (role && !allowedRoles.includes(role)) {
+      return res.status(400).json({ error: 'Invalid role' });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE staff_users
+      SET
+        full_name = COALESCE($1, full_name),
+        email = COALESCE($2, email),
+        role = COALESCE($3, role),
+        phone = COALESCE($4, phone),
+        updated_at = NOW()
+      WHERE id = $5
+      RETURNING id, full_name, email, role, phone, is_active, created_at, updated_at
+      `,
+      [
+        full_name ?? null,
+        email ? String(email).toLowerCase() : null,
+        role ?? null,
+        phone ?? null,
+        id
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Staff user not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update staff user error:', err);
+
+    if (err.code === '23505') {
+      return res.status(400).json({ error: 'Email already exists' });
+    }
+
+    if (err.code === '42703') {
+      return res.status(500).json({ error: 'phone column missing on staff_users table' });
+    }
+
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Staff login
 app.post('/api/staff/login', async (req, res) => {
   try {
