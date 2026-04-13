@@ -851,6 +851,7 @@ function getAuthHeaders(extraHeaders = {}) {
   };
 }
       let allContractors = [];
+      let staffDirectory = [];
       let analysisDrafts = {};
       let analyzingDocs = {};
       let openFolders = {};
@@ -1810,6 +1811,7 @@ function renderContractors(data) {
         </div>
 
         <div class="contractor-meta">
+          <div><span class="meta-label">Owner:</span> ${escapeHtml(getStaffNameById(c.staff_user_id))}</div>
           <div><span class="meta-label">Email:</span> ${escapeHtml(c.email || "—")}</div>
           <div><span class="meta-label">Phone:</span> ${escapeHtml(c.phone || "—")}</div>
           <div><span class="meta-label">Status:</span> ${escapeHtml(c.status || "active")}</div>
@@ -1870,6 +1872,8 @@ function renderContractors(data) {
           </div>
           <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
         </div>
+
+      ${renderContractorAssignmentControls(c)}
       </div>
     `;
 
@@ -1877,6 +1881,74 @@ function renderContractors(data) {
   });
 }
 
+function renderContractorAssignmentControls(contractor) {
+  const user = getStoredStaffUser();
+  if (!user || user.role !== "admin") return "";
+
+  if (!staffDirectory || staffDirectory.length === 0) {
+    return `
+      <div class="section-block">
+        <div class="section-title">Assignment</div>
+        <div style="font-size:13px; color:#666;">
+          Load staff users to assign contractor.
+        </div>
+      </div>
+    `;
+  }
+
+  const options = staffDirectory.map(user => `
+    <option value="${user.id}" ${user.id === contractor.staff_user_id ? "selected" : ""}>
+      ${escapeHtml(user.full_name || user.email)}
+    </option>
+  `).join("");
+
+  return `
+    <div class="section-block">
+      <div class="section-title">Assign Contractor</div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <select id="assign-${contractor.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+          ${options}
+        </select>
+
+        <button onclick="assignContractor('${contractor.id}')">
+          Update Owner
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function assignContractor(contractorId) {
+  const select = document.getElementById("assign-" + contractorId);
+  if (!select) return;
+  const staff_user_id = select.value;
+
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId + "/assign", {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({ staff_user_id })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Assignment failed");
+      return;
+    }
+
+    alert("Contractor reassigned successfully");
+    loadContractors();
+
+  } catch (err) {
+    console.error(err);
+    alert("Error assigning contractor");
+  }
+}
+    
 function filterContractors() {
   const query = document.getElementById("searchInput").value.toLowerCase();
 
@@ -1944,6 +2016,8 @@ async function loadStaffUsers() {
     });
 
     const data = await res.json();
+
+    staffDirectory = Array.isArray(data) ? data : [];
 
     if (!res.ok) {
       wrap.className = "";
