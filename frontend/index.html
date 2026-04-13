@@ -808,6 +808,62 @@
     </div>
   </div>
 
+  <div id="entryReviewModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:9999; padding:24px; overflow:auto;">
+    <div style="max-width:720px; margin:40px auto; background:#fff; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,0.18); border:1px solid #e5eaf0; overflow:hidden;">
+      <div style="padding:20px 24px; border-bottom:1px solid #eef2f6; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div>
+          <div style="font-size:22px; font-weight:700; color:#1f2d3a;">Review Financial Entry</div>
+          <div style="font-size:13px; color:#66788a; margin-top:4px;">Confirm or edit the AI suggestion before saving.</div>
+        </div>
+        <button onclick="closeEntryReviewModal()" class="soft-btn">Close</button>
+      </div>
+
+      <div style="padding:24px;">
+        <input type="hidden" id="entryReviewDocumentId" />
+
+        <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px;">
+          <div>
+            <label for="entryReviewType">Entry Type</label>
+            <select id="entryReviewType" style="width:100%; padding:12px; border-radius:10px; border:1px solid #d9dee5;">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="entryReviewAmount">Amount</label>
+            <input id="entryReviewAmount" placeholder="0.00" />
+          </div>
+
+          <div>
+            <label for="entryReviewCategory">Category</label>
+            <input id="entryReviewCategory" placeholder="Category" />
+          </div>
+
+          <div>
+            <label for="entryReviewDate">Entry Date</label>
+            <input id="entryReviewDate" type="date" />
+          </div>
+
+          <div style="grid-column:1 / -1;">
+            <label for="entryReviewVendor">Vendor / Payor</label>
+            <input id="entryReviewVendor" placeholder="Vendor or payor" />
+          </div>
+
+          <div style="grid-column:1 / -1;">
+            <label for="entryReviewDescription">Description</label>
+            <input id="entryReviewDescription" placeholder="Description" />
+          </div>
+        </div>
+
+        <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="soft-btn" onclick="closeEntryReviewModal()">Cancel</button>
+          <button class="primary-btn" onclick="submitReviewedEntry()">Create Entry</button>
+        </div>
+      </div>
+    </div>
+  </div>
+    
   <script>
     const API = "https://one099-document-portal2.onrender.com";
     const STAFF_USER_STORAGE_KEY = "staffUser";
@@ -1966,7 +2022,6 @@ function filterContractors() {
 
 async function createEntryFromDoc(documentId) {
   try {
-    // Step 1: Analyze first (get AI suggestions)
     const analyzeRes = await fetch(API + "/api/documents/" + documentId + "/analyze", {
       method: "POST",
       headers: getAuthHeaders()
@@ -1979,33 +2034,66 @@ async function createEntryFromDoc(documentId) {
       return;
     }
 
-    const suggested = analyzeData.suggested;
+    openEntryReviewModal(documentId, analyzeData.suggested || {});
+  } catch (err) {
+    console.error(err);
+    alert("Error preparing entry");
+  }
+}
 
-    // Step 2: Show confirmation UI
-    const confirmed = confirm(
-      `Create Entry?\n\n` +
-      `Type: ${suggested.entry_type}\n` +
-      `Amount: $${suggested.amount}\n` +
-      `Category: ${suggested.category}\n` +
-      `Date: ${suggested.entry_date}\n\n` +
-      `Click OK to create entry`
-    );
+function openEntryReviewModal(documentId, suggested) {
+  document.getElementById("entryReviewDocumentId").value = documentId;
+  document.getElementById("entryReviewType").value = suggested.entry_type || "expense";
+  document.getElementById("entryReviewAmount").value = suggested.amount || "";
+  document.getElementById("entryReviewCategory").value = suggested.category || "Uncategorized";
+  document.getElementById("entryReviewDate").value = suggested.entry_date || "";
+  document.getElementById("entryReviewVendor").value = suggested.vendor_or_payor || "";
+  document.getElementById("entryReviewDescription").value = suggested.description || "Created from document";
 
-    if (!confirmed) return;
+  document.getElementById("entryReviewModal").style.display = "block";
+}
 
-    // Step 3: Create entry using AI data
+function closeEntryReviewModal() {
+  document.getElementById("entryReviewModal").style.display = "none";
+}
+
+async function submitReviewedEntry() {
+  const documentId = document.getElementById("entryReviewDocumentId").value;
+  const entry_type = document.getElementById("entryReviewType").value;
+  const amount = document.getElementById("entryReviewAmount").value;
+  const category = document.getElementById("entryReviewCategory").value;
+  const entry_date = document.getElementById("entryReviewDate").value;
+  const vendor_or_payor = document.getElementById("entryReviewVendor").value;
+  const description = document.getElementById("entryReviewDescription").value;
+
+  if (!documentId) {
+    alert("Missing document");
+    return;
+  }
+
+  if (!amount || Number(amount) <= 0) {
+    alert("Enter a valid amount");
+    return;
+  }
+
+  if (!entry_date) {
+    alert("Entry date is required");
+    return;
+  }
+
+  try {
     const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
       method: "POST",
       headers: getAuthHeaders({
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
-        entry_type: suggested.entry_type,
-        amount: suggested.amount,
-        entry_date: suggested.entry_date,
-        category: suggested.category,
-        description: suggested.description,
-        vendor_or_payor: suggested.vendor_or_payor
+        entry_type,
+        amount,
+        entry_date,
+        category,
+        description,
+        vendor_or_payor
       })
     });
 
@@ -2016,16 +2104,15 @@ async function createEntryFromDoc(documentId) {
       return;
     }
 
-    alert("✅ Financial entry created");
-
+    closeEntryReviewModal();
+    alert("Financial entry created");
     console.log("ENTRY:", data);
-
   } catch (err) {
     console.error(err);
     alert("Error creating entry");
   }
 }
-
+    
 async function loadStaffUsers() {
   const wrap = document.getElementById("staffUsersWrap");
   if (!wrap) return;
