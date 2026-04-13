@@ -1,0 +1,2268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>1099 Staff Portal</title>
+
+  <style>
+    :root {
+      --red: #c62828;
+      --green: #1b5e20;
+      --green-light: #2e7d32;
+      --yellow: #f4c542;
+      --white: #ffffff;
+      --off-white: #f7f8fa;
+      --gray: #6b7280;
+      --border: #d9dee5;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      --radius: 14px;
+      --blue: #1e5aa8;
+      --blue-light: #eaf2fd;
+      --soft-red: #fff3f3;
+      --soft-green: #eef8f0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, #f8fafc 0%, #eef3f7 100%);
+      color: #18212b;
+    }
+
+    .topbar {
+      background: linear-gradient(90deg, var(--green) 0%, #6c5d15 45%, var(--red) 100%);
+      color: var(--white);
+      padding: 18px 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .topbar p {
+      margin: 6px 0 0;
+      opacity: 0.95;
+      font-size: 14px;
+    }
+
+    .page {
+      max-width: 1180px;
+      margin: 28px auto;
+      padding: 0 20px 40px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      gap: 24px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 22px;
+    }
+
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      color: var(--green);
+    }
+
+    .panel p {
+      margin: 0 0 18px;
+      color: var(--gray);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #304050;
+      margin-bottom: 6px;
+      display: block;
+    }
+
+    input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 15px;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus {
+      border-color: var(--green-light);
+      box-shadow: 0 0 0 4px rgba(46, 125, 50, 0.12);
+    }
+
+    .actions {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: none;
+      border-radius: 10px;
+      padding: 13px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.05s ease, opacity 0.2s ease, background 0.2s ease;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    .primary-btn {
+      background: var(--yellow);
+      color: #1d1d1d;
+    }
+
+    .secondary-btn {
+      background: var(--green);
+      color: var(--white);
+    }
+
+    .portal-btn {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    .soft-btn {
+      background: #eef3f7;
+      color: #22313f;
+      border: 1px solid var(--border);
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .status.success {
+      display: block;
+      background: #e9f7ec;
+      color: #1b5e20;
+      border: 1px solid #bfe2c7;
+    }
+
+    .status.error {
+      display: block;
+      background: #fdecec;
+      color: var(--red);
+      border: 1px solid #f3c2c2;
+    }
+
+    .status.info {
+      display: block;
+      background: #eef5fb;
+      color: #174b73;
+      border: 1px solid #c8ddf1;
+    }
+
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .list-header h2 {
+      margin: 0;
+      font-size: 24px;
+      color: var(--red);
+    }
+
+    .muted {
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    .contractors-empty {
+      padding: 24px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: #fafbfc;
+      color: var(--gray);
+      text-align: center;
+    }
+
+    .contractor-card {
+      border: 1px solid var(--border);
+      border-left: 6px solid var(--green);
+      border-radius: 12px;
+      padding: 18px;
+      background: #fff;
+      margin-bottom: 14px;
+    }
+
+    .contractor-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .contractor-name {
+      font-size: 19px;
+      font-weight: 700;
+      color: #1f2d3a;
+      margin-bottom: 8px;
+    }
+
+    .contractor-subtext {
+      font-size: 13px;
+      color: #5b6978;
+      margin-top: -3px;
+    }
+
+    .contractor-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      font-size: 14px;
+      color: #425466;
+      margin-top: 12px;
+    }
+
+    .meta-label {
+      font-weight: 700;
+      color: #22313f;
+    }
+
+    .card-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .mini-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 10px;
+      font-size: 13px;
+      background: var(--blue-light);
+      color: #21476f;
+      border: 1px solid #cddcf2;
+    }
+
+    .section-block {
+      margin-top: 15px;
+      padding-top: 14px;
+      border-top: 1px solid #edf1f5;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #243443;
+      margin-bottom: 10px;
+    }
+
+    .loading {
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    .doc-card {
+      margin-top: 8px;
+      padding: 10px;
+      background: #f5f5f5;
+      border-radius: 8px;
+    }
+
+    .analysis-box {
+      margin-top: 12px;
+      padding: 12px;
+      background: #eef6ff;
+      border: 1px solid #cfe0f5;
+      border-radius: 10px;
+    }
+
+    .analysis-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #174b73;
+      margin-bottom: 10px;
+    }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .analysis-grid input,
+    .analysis-grid select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #cfd8e3;
+      background: #fff;
+    }
+
+    .analysis-actions {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .analysis-confidence {
+      margin-top: 8px;
+      font-size: 12px;
+      color: #4b647d;
+      font-weight: 700;
+    }
+    
+    .doc-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .doc-meta {
+      font-size: 12px;
+      color: #555;
+      margin-top: 4px;
+      line-height: 1.45;
+    }
+
+    .portal-link-row {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: var(--soft-green);
+      border: 1px solid #cae6d0;
+      border-radius: 10px;
+      font-size: 13px;
+      color: #20462a;
+      word-break: break-all;
+    }
+
+    .copy-btn {
+      background: #f1f5f9;
+      color: #243443;
+      border: 1px solid #dbe3ea;
+      padding: 8px 12px;
+      font-size: 13px;
+    }
+
+    .login-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef3f7 100%);
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.login-card-top {
+  background: linear-gradient(90deg, var(--green) 0%, #6c5d15 45%, var(--red) 100%);
+  color: var(--white);
+  padding: 22px 24px;
+}
+
+.login-card-top h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.login-card-top p {
+  margin: 8px 0 0;
+  font-size: 14px;
+  opacity: 0.95;
+  line-height: 1.4;
+}
+
+.login-card-body {
+  padding: 22px 24px 24px;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--green);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-note {
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--gray);
+  line-height: 1.45;
+}
+  .admin-panel {
+  grid-column: 1 / -1;
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 18px;
+  padding: 22px 24px 18px;
+  border-bottom: 1px solid #edf1f5;
+  background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fa 100%);
+}
+
+.admin-panel-header h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+  color: #1f2d3a;
+}
+
+.admin-panel-header p {
+  margin: 0;
+  max-width: 780px;
+  color: #5b6978;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.admin-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #eef8f0;
+  color: var(--green);
+  border: 1px solid #cfe7d4;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.admin-panel-body {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 0;
+}
+
+.admin-create-column {
+  padding: 24px;
+  border-right: 1px solid #edf1f5;
+  background: #fcfdff;
+}
+
+.admin-directory-column {
+  padding: 24px;
+  background: #fff;
+}
+
+.admin-subtitle {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #243443;
+}
+
+.admin-form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.admin-actions {
+  margin-top: 18px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.admin-toggle-btn {
+  background: #ffffff;
+  color: #243443;
+  border: 1px solid #dbe3ea;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-toggle-btn:hover {
+  background: #f8fafc;
+}
+    
+.staff-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.staff-card {
+  border: 1px solid #e6ecf2;
+  border-left: 6px solid var(--green);
+  border-radius: 16px;
+  padding: 18px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbfd 100%);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+  transition: all 0.2s ease;
+}
+
+.staff-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.staff-card.inactive {
+  border-left-color: var(--red);
+  background: #fffdfd;
+}
+
+.staff-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.staff-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a2b3c;
+  margin-bottom: 4px;
+  letter-spacing: 0.2px;
+}
+
+.staff-email {
+  font-size: 13px;
+  color: #6b7a8c;
+}
+
+.staff-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: #425466;
+}
+
+.staff-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.staff-status-pill.active {
+  background: #eef8f0;
+  color: var(--green);
+  border-color: #cfe7d4;
+}
+
+.staff-status-pill.inactive {
+  background: #fff1f1;
+  color: var(--red);
+  border-color: #f2caca;
+}
+
+@media (max-width: 1100px) {
+  .admin-panel-body {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-create-column {
+    border-right: none;
+    border-bottom: 1px solid #edf1f5;
+  }
+
+  .staff-directory-grid {
+    grid-template-columns: 1fr;
+  }
+}  
+    @media (max-width: 900px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .topbar h1 {
+        font-size: 28px;
+      }
+
+      .contractor-meta {
+        grid-template-columns: 1fr;
+      }
+
+      .doc-row {
+        flex-direction: column;
+      }
+
+      .contractor-header {
+        flex-direction: column;
+      }
+
+      .card-toolbar {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="loginContainer" class="login-shell">
+  <div class="login-card">
+    
+    <div class="login-card-top">
+      <h2>1099 Staff Portal</h2>
+      <p>Secure access for contractor management, document review, and financial workflows.</p>
+    </div>
+
+    <div class="login-card-body">
+      <input id="loginEmail" placeholder="Email" style="width:100%;margin-bottom:12px;padding:10px;border-radius:8px;border:1px solid #dbe3ea;" />
+      
+      <input id="loginPassword" type="password" placeholder="Password"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();handleLogin();}"
+        style="width:100%;margin-bottom:14px;padding:10px;border-radius:8px;border:1px solid #dbe3ea;" />
+
+      <button onclick="handleLogin()" class="login-btn">Login</button>
+
+      <div class="login-note">
+        Internal use only. All access is monitored and logged for security.
+      </div>
+    </div>
+
+  </div>
+</div>
+
+  <div id="appContainer" style="display:none;">
+ <div class="topbar" style="display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;">
+  <div>
+    <h1>1099 Staff Portal</h1>
+    <p>Internal contractor management, document collection, review workflow, and contractor portal access.</p>
+  </div>
+
+  <div>
+    <button onclick="handleLogout()" style="background:#ffffff; color:#1b5e20; border:1px solid #d9dee5; padding:10px 14px; border-radius:10px; font-weight:700; cursor:pointer;">
+      Logout
+    </button>
+  </div>
+</div>
+
+  <div class="page">
+    <div class="grid">
+
+      <div class="panel">
+        <h2>Create Contractor</h2>
+        <p>Add a contractor record to begin collecting documents, entries, and monthly reporting data.</p>
+
+        <div class="field-group">
+          <div>
+            <label for="name">Contractor Name</label>
+            <input id="name" placeholder="Enter contractor name" />
+          </div>
+
+          <div>
+            <label for="email">Email</label>
+            <input id="email" placeholder="Enter email address" />
+          </div>
+
+          <div>
+            <label for="phone">Phone</label>
+            <input id="phone" placeholder="Enter phone number" />
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="primary-btn" onclick="createContractor()">Create Contractor</button>
+          <button class="secondary-btn" onclick="loadContractors()">Refresh List</button>
+        </div>
+
+        <div id="statusBox" class="status"></div>
+
+        <div class="mini-note">
+          This page is your internal staff workspace. Contractors should use the separate <b>contractor portal</b>, not this staff screen.
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="list-header">
+          <div>
+            <h2>Contractors</h2>
+            <div class="muted">
+              Manage contractor records, documents, review statuses, and direct portal access from one place.
+            </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+            <input 
+              id="searchInput"
+              placeholder="Search by name, email, phone..."
+              style="width:100%; padding:12px; border-radius:10px; border:1px solid #d9dee5;"
+              oninput="filterContractors()"
+            />
+          </div>
+        </div>
+        <div id="contractors" class="loading">Loading contractors...</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="entryReviewModal" style="display:none; position:fixed; inset:0; background:rgba(15,23,42,0.45); z-index:9999; padding:24px; overflow:auto;">
+    <div style="max-width:720px; margin:40px auto; background:#fff; border-radius:16px; box-shadow:0 20px 50px rgba(0,0,0,0.18); border:1px solid #e5eaf0; overflow:hidden;">
+      <div style="padding:20px 24px; border-bottom:1px solid #eef2f6; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div>
+          <div style="font-size:22px; font-weight:700; color:#1f2d3a;">Review Financial Entry</div>
+          <div style="font-size:13px; color:#66788a; margin-top:4px;">Confirm or edit the AI suggestion before saving.</div>
+        </div>
+        <button onclick="closeEntryReviewModal()" class="soft-btn">Close</button>
+      </div>
+
+      <div style="padding:24px;">
+        <input type="hidden" id="entryReviewDocumentId" />
+
+        <div style="display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:14px;">
+          <div>
+            <label for="entryReviewType">Entry Type</label>
+            <select id="entryReviewType" style="width:100%; padding:12px; border-radius:10px; border:1px solid #d9dee5;">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+          </div>
+
+          <div>
+            <label for="entryReviewAmount">Amount</label>
+            <input id="entryReviewAmount" placeholder="0.00" />
+          </div>
+
+          <div>
+            <label for="entryReviewCategory">Category</label>
+            <input id="entryReviewCategory" placeholder="Category" />
+          </div>
+
+          <div>
+            <label for="entryReviewDate">Entry Date</label>
+            <input id="entryReviewDate" type="date" />
+          </div>
+
+          <div style="grid-column:1 / -1;">
+            <label for="entryReviewVendor">Vendor / Payor</label>
+            <input id="entryReviewVendor" placeholder="Vendor or payor" />
+          </div>
+
+          <div style="grid-column:1 / -1;">
+            <label for="entryReviewDescription">Description</label>
+            <input id="entryReviewDescription" placeholder="Description" />
+          </div>
+        </div>
+
+        <div style="margin-top:18px; display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+          <button class="soft-btn" onclick="closeEntryReviewModal()">Cancel</button>
+          <button class="primary-btn" onclick="submitReviewedEntry()">Create Entry</button>
+        </div>
+      </div>
+    </div>
+  </div>
+    
+  <script>
+    const API = "https://one099-document-portal2.onrender.com";
+    const STAFF_USER_STORAGE_KEY = "staffUser";
+
+function getStoredStaffUser() {
+  try {
+    const raw = localStorage.getItem(STAFF_USER_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    console.error("Read stored staff user error:", err);
+    return null;
+  }
+}
+
+function setStoredStaffUser(user) {
+  localStorage.setItem(STAFF_USER_STORAGE_KEY, JSON.stringify(user));
+}
+  
+function clearStoredStaffUser() {
+  localStorage.removeItem(STAFF_USER_STORAGE_KEY);
+}
+
+function handleLogout() {
+  clearStoredStaffUser();
+
+  document.getElementById("appContainer").style.display = "none";
+  document.getElementById("loginContainer").style.display = "block";
+
+  document.getElementById("loginEmail").value = "";
+  document.getElementById("loginPassword").value = "";
+
+  alert("Logged out successfully");
+}
+    
+function getAuthHeaders(extraHeaders = {}) {
+  const staffUser = getStoredStaffUser();
+
+  return {
+    ...extraHeaders,
+    ...(staffUser && staffUser.id ? { "x-user-id": staffUser.id } : {})
+  };
+}
+      let allContractors = [];
+      let staffDirectory = [];
+      let analysisDrafts = {};
+      let analyzingDocs = {};
+      let openFolders = {};
+      let openMonthFolders = {};
+      let openCategoryFolders = {};
+      const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+      let idleTimeoutHandle = null;
+    function resetIdleTimer() {
+  if (idleTimeoutHandle) {
+    clearTimeout(idleTimeoutHandle);
+  }
+
+  idleTimeoutHandle = setTimeout(() => {
+    handleLogout();
+    alert("You were logged out due to inactivity");
+  }, IDLE_TIMEOUT_MS);
+}
+
+function startIdleTracking() {
+  const events = ["mousemove", "keydown", "click", "scroll"];
+
+  events.forEach(event => {
+    document.addEventListener(event, resetIdleTimer);
+  });
+
+  resetIdleTimer();
+}
+    function showStatus(message, type) {
+      const box = document.getElementById("statusBox");
+      box.className = "status " + type;
+      box.textContent = message;
+    }
+
+    async function staffLogin() {
+  const email = prompt("Enter email:");
+  const password = prompt("Enter password:");
+
+  if (!email || !password) {
+    alert("Email and password required");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Login failed");
+      return;
+    }
+
+    // 🔥 THIS is the key line
+    setStoredStaffUser(data.user);
+
+    alert("Login successful");
+
+    // reload contractors after login
+    loadContractors();
+
+  } catch (err) {
+    console.error("Login error:", err);
+    alert("Login failed");
+  }
+}
+
+async function handleLogin() {
+  const email = document.getElementById("loginEmail").value;
+  const password = document.getElementById("loginPassword").value;
+
+  if (!email || !password) {
+    alert("Enter email and password");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Login failed");
+      return;
+    }
+
+    // store user (you already built this earlier)
+    setStoredStaffUser(data.user);
+
+    startIdleTracking();
+
+    if (data.user.role === "admin") {
+      window.location.href = "admin.html";
+    } else {
+      window.location.href = "staff.html";
+    }
+
+  } catch (err) {
+    console.error(err);
+    alert("Login error");
+  }
+}
+    
+    function clearStatus() {
+      const box = document.getElementById("statusBox");
+      box.className = "status";
+      box.textContent = "";
+    }
+
+    function escapeHtml(value) {
+      return String(value || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function getContractorPortalUrl(contractorId) {
+      return "contractor.html?contractorId=" + contractorId;
+    }
+
+   async function openContractorPortal(contractorId) {
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId + "/access-link", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        created_by: "Staff"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to generate secure portal link");
+      return;
+    }
+
+    window.open(data.portal_url, "_blank");
+  } catch (err) {
+    console.error("Open contractor portal error:", err);
+    alert("Unable to open contractor portal");
+  }
+}
+
+    async function copyContractorPortalLink(contractorId) {
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId + "/access-link", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        created_by: "Staff"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to generate secure portal link");
+      return;
+    }
+
+    await navigator.clipboard.writeText(data.portal_url);
+    alert("Secure contractor portal link copied");
+  } catch (err) {
+    console.error("Copy portal link error:", err);
+    alert("Unable to copy portal link");
+  }
+}
+
+    async function createContractor() {
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const phone = document.getElementById("phone").value.trim();
+
+      clearStatus();
+
+      if (!name) {
+        showStatus("Contractor name is required.", "error");
+        return;
+      }
+
+      try {
+        const res = await fetch(API + "/api/contractors", {
+          method: "POST",
+          headers: getAuthHeaders({
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({
+            contractor_name: name,
+            email: email,
+            phone: phone
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showStatus(data.error || "Unable to create contractor.", "error");
+          return;
+        }
+
+        document.getElementById("name").value = "";
+        document.getElementById("email").value = "";
+        document.getElementById("phone").value = "";
+
+        showStatus("Contractor created successfully.", "success");
+        await loadContractors();
+      } catch (error) {
+        console.error("Create contractor error:", error);
+        showStatus("Request failed. Check browser console for details.", "error");
+      }
+    }
+
+    async function loadContractors() {
+  const div = document.getElementById("contractors");
+  div.className = "loading";
+  div.textContent = "Loading contractors...";
+
+  try {
+    const res = await fetch(API + "/api/contractors", {
+      headers: getAuthHeaders()
+    });
+    const data = await res.json();
+
+    if (!res.ok) {
+      div.className = "";
+      div.innerHTML = `<div class="contractors-empty">Failed to load contractors.</div>`;
+      return;
+    }
+
+    allContractors = data;
+    renderContractors(data);
+     } catch (error) {
+    console.error("Load contractors error:", error);
+    div.className = "";
+    div.innerHTML = `
+      <div class="contractors-empty">
+        Could not connect to the backend.
+      </div>
+    `;
+  }
+}
+    function getSelectedDocType(contractorId) {
+      const select = document.getElementById(`doc-type-${contractorId}`);
+      return select ? select.value : "other";
+    }
+    function getSelectedCategory(contractorId) {
+      const select = document.getElementById(`doc-category-${contractorId}`);
+      return select ? select.value : "Uncategorized";
+    }
+    async function handleFileSelection(contractorId, input) {
+      input.onchange = async () => {
+        const file = input.files[0];
+        if (!file) return;
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          formData.append("contractor_id", contractorId);
+          formData.append("document_type", getSelectedDocType(contractorId));
+          formData.append("category", getSelectedCategory(contractorId));
+
+          const periodMonthInput = document.getElementById(`period-month-${contractorId}`);
+          const periodYearInput = document.getElementById(`period-year-${contractorId}`);
+
+          if (periodMonthInput && periodMonthInput.value) {
+            formData.append("period_month", periodMonthInput.value);
+          }
+
+          if (periodYearInput && periodYearInput.value) {
+            formData.append("period_year", periodYearInput.value);
+          }
+
+          const res = await fetch(API + "/api/documents", {
+            method: "POST",
+            headers: getAuthHeaders(),
+            body: formData
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            alert(data.error || "Upload failed");
+            return;
+          }
+
+          alert("Document uploaded");
+          loadDocuments(contractorId);
+        } catch (err) {
+          console.error("Upload error:", err);
+          alert("Upload failed");
+        }
+      };
+
+      input.click();
+    }
+
+    function takePhoto(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.capture = "environment";
+      handleFileSelection(contractorId, input);
+    }
+
+    function chooseFile(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      handleFileSelection(contractorId, input);
+    }
+
+    function uploadPDF(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "application/pdf";
+      handleFileSelection(contractorId, input);
+    }
+
+    function scanDocument(contractorId) {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*,application/pdf";
+      handleFileSelection(contractorId, input);
+    }
+
+    async function openDocument(documentId) {
+      try {
+        const res = await fetch(API + "/api/documents/file/" + documentId, {
+          headers: getAuthHeaders()
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || "Unable to open document");
+          return;
+        }
+
+        window.open(data.url, "_blank");
+      } catch (err) {
+        console.error("Open document error:", err);
+        alert("Unable to open document");
+      }
+    }
+
+    async function updateDocumentStatus(documentId, reviewStatus, contractorId) {
+      try {
+        const res = await fetch(API + "/api/documents/" + documentId + "/review-status", {
+          method: "PATCH",
+          headers: getAuthHeaders({
+            "Content-Type": "application/json"
+          }),
+          body: JSON.stringify({
+            review_status: reviewStatus,
+            reviewed_by: "Staff"
+          })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.error || "Unable to update status");
+          return;
+        }
+
+        loadDocuments(contractorId);
+      } catch (err) {
+        console.error("Update document status error:", err);
+        alert("Unable to update status");
+      }
+    }
+    async function updateDocumentMeta(documentId, documentType, category, periodMonth, periodYear, contractorId) {
+  try {
+     const res = await fetch(API + "/api/documents/" + documentId, {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        document_type: documentType || undefined,
+        category: category || undefined,
+        period_month: periodMonth || undefined,
+        period_year: periodYear || undefined
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to update document");
+      return;
+    }
+
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Update document meta error:", err);
+    alert("Update failed");
+  }
+}
+    
+  async function saveDocumentNotes(documentId, contractorId) {
+  try {
+    const notesInput = document.getElementById("doc-notes-" + documentId);
+    const notes = notesInput ? notesInput.value : "";
+
+    const res = await fetch(API + "/api/documents/" + documentId, {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        notes: notes
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to save notes");
+      return;
+    }
+
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Save document notes error:", err);
+    alert("Unable to save notes");
+  }
+}  
+
+    async function deleteDocument(documentId, contractorId) {
+  const confirmed = confirm("Delete this document permanently?");
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId, {
+      method: "DELETE",
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to delete document");
+      return;
+    }
+
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Delete document error:", err);
+    alert("Unable to delete document");
+  }
+}
+    
+    async function analyzeDocument(documentId, contractorId) {
+        analyzingDocs[documentId] = true;
+        loadDocuments(contractorId);
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId + "/analyze", {
+      method: "POST",
+     headers: getAuthHeaders({
+      "Content-Type": "application/json"
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      analyzingDocs[documentId] = false;
+      loadDocuments(contractorId);
+      alert(data.error || "Unable to analyze document");
+      return;
+    }
+
+    analysisDrafts[documentId] = data.suggested;
+    analyzingDocs[documentId] = false;
+    loadDocuments(contractorId);
+  } catch (err) {
+    analyzingDocs[documentId] = false;
+    console.error("Analyze document error:", err);
+    alert("Unable to analyze document");
+  }
+}
+
+async function analyzeBatchDocuments(contractorId) {
+  try {
+    alert("Analyzing all documents... this may take a few seconds");
+
+    const res = await fetch(API + "/api/documents/analyze-batch/" + contractorId, {
+      method: "POST",
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Batch analysis failed");
+      return;
+    }
+
+    // Store all drafts
+    data.results.forEach(result => {
+      if (result.status !== "success") return;
+      
+      
+      analysisDrafts[result.document_id] = {
+        entry_type: result.suggested.entry_type || "expense",
+        amount: result.suggested.amount || "0.00",
+        entry_date: result.suggested.entry_date,
+        category: result.suggested.category,
+        description: result.suggested.description,
+        vendor_or_payor: result.suggested.vendor_or_payor,
+        confidence: result.suggested.confidence
+      };
+    });
+
+    alert(`${data.success_count} succeeded, ${data.error_count} failed`);
+
+    loadDocuments(contractorId);
+
+  } catch (err) {
+    console.error("Batch analyze error:", err);
+    alert("Batch analysis failed");
+  }
+}
+    
+function cancelAnalysisDraft(documentId, contractorId) {
+  delete analysisDrafts[documentId];
+  loadDocuments(contractorId);
+}
+
+async function confirmAnalyzedEntry(documentId, contractorId) {
+  const entryType = document.getElementById("analysis-entry-type-" + documentId)?.value || "expense";
+  const amount = document.getElementById("analysis-amount-" + documentId)?.value || "";
+  const entryDate = document.getElementById("analysis-date-" + documentId)?.value || "";
+  const category = document.getElementById("analysis-category-" + documentId)?.value || "Uncategorized";
+  const description = document.getElementById("analysis-description-" + documentId)?.value || "";
+  const vendor = document.getElementById("analysis-vendor-" + documentId)?.value || "";
+
+  if (!amount || Number(amount) <= 0) {
+    alert("Enter a valid amount");
+    return;
+  }
+
+  if (!entryDate) {
+    alert("Enter an entry date");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        entry_type: entryType,
+        entry_date: entryDate,
+        amount: Number(amount),
+        category: category,
+        description: description,
+        vendor_or_payor: vendor
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create entry");
+      return;
+    }
+
+    delete analysisDrafts[documentId];
+    alert("Financial entry created successfully");
+    loadDocuments(contractorId);
+  } catch (err) {
+    console.error("Confirm analyzed entry error:", err);
+    alert("Error creating entry");
+  }
+}
+
+function renderAnalysisDraft(documentId, contractorId, draft) {
+  if (!draft) return "";
+
+  return `
+    <div class="analysis-box">
+      <div class="analysis-title">Draft Analysis Ready For Review</div>
+
+      <div class="analysis-grid">
+        <div>
+          <label>Entry Type</label>
+          <select id="analysis-entry-type-${documentId}">
+            <option value="expense" ${draft.entry_type === "expense" ? "selected" : ""}>Expense</option>
+            <option value="income" ${draft.entry_type === "income" ? "selected" : ""}>Income</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Amount</label>
+          <input id="analysis-amount-${documentId}" value="${escapeHtml(draft.amount || "")}" />
+        </div>
+
+        <div>
+          <label>Date</label>
+          <input id="analysis-date-${documentId}" type="date" value="${escapeHtml(draft.entry_date || "")}" />
+        </div>
+
+        <div>
+          <label>Category</label>
+          <input id="analysis-category-${documentId}" value="${escapeHtml(draft.category || "Uncategorized")}" />
+        </div>
+
+        <div>
+          <label>Vendor / Payor</label>
+          <input id="analysis-vendor-${documentId}" value="${escapeHtml(draft.vendor_or_payor || "")}" />
+        </div>
+
+        <div>
+          <label>Description</label>
+          <input id="analysis-description-${documentId}" value="${escapeHtml(draft.description || "")}" />
+        </div>
+      </div>
+
+      <div class="analysis-confidence">
+        Confidence: ${escapeHtml(draft.confidence || "low")}
+      </div>
+
+      <div class="analysis-actions">
+        <button class="secondary-btn" onclick="confirmAnalyzedEntry('${documentId}', '${contractorId}')">
+          Confirm Entry
+        </button>
+        <button class="soft-btn" onclick="cancelAnalysisDraft('${documentId}', '${contractorId}')">
+          Cancel
+        </button>
+      </div>
+    </div>
+  `;
+}
+    async function loadDocuments(contractorId) {
+       try {
+        const res = await fetch(API + "/api/documents/" + contractorId, {
+                            headers: getAuthHeaders()
+                          })
+        const data = await res.json();
+
+        const div = document.getElementById("docs-" + contractorId);
+        if (!div) return;
+
+        div.innerHTML = "";
+
+        if (!Array.isArray(data) || data.length === 0) {
+          div.innerHTML = `<div style="color:#666;">No documents uploaded yet.</div>`;
+          return;
+        }
+
+  const grouped = groupStaffDocuments(data);
+
+function renderGroup(title, docs, folderKey) {
+  if (!docs.length) return "";
+
+  const isOpen = openFolders[folderKey] !== false;
+
+  let html = `
+    <div style="margin-bottom:16px;">
+      <div 
+        onclick="toggleFolder('${folderKey}'); loadDocuments('${contractorId}')"
+        style="font-weight:700; font-size:14px; margin-bottom:8px; cursor:pointer; user-select:none;"
+      >
+        ${isOpen ? '📂' : '📁'} ${title} (${docs.length})
+      </div>
+  `;
+
+  if (isOpen) {
+    const monthGroups = groupByMonthYear(docs);
+
+    monthGroups.forEach(group => {
+      const monthKey = folderKey + "-" + group.label;
+      const isMonthOpen = openMonthFolders[monthKey] !== false;
+
+      html += `
+        <div style="margin:10px 0;">
+          <div
+            onclick="toggleMonthFolder('${monthKey}'); loadDocuments('${contractorId}')"
+            style="font-weight:600; font-size:13px; margin-bottom:6px; cursor:pointer; user-select:none;"
+          >
+            ${isMonthOpen ? '📂' : '📁'} ${group.label}
+          </div>
+      `;
+
+if (isMonthOpen) {
+const categoryGroups = groupByCategory(group.docs);
+
+categoryGroups.forEach(categoryGroup => {
+  const categoryKey = monthKey + "-" + categoryGroup.label;
+  const isCategoryOpen = openCategoryFolders[categoryKey] !== false;
+
+  html += `
+    <div style="margin:8px 0 12px 12px;">
+      <div
+        onclick="toggleCategoryFolder('${categoryKey}'); loadDocuments('${contractorId}')"
+        style="font-weight:600; font-size:12px; margin-bottom:6px; cursor:pointer; user-select:none;"
+      >
+        ${isCategoryOpen ? '📂' : '📁'} ${categoryGroup.label} (${categoryGroup.docs.length})
+      </div>
+  `;
+
+  if (isCategoryOpen) {
+    categoryGroup.docs.forEach(doc => {
+      const date = new Date(doc.created_at).toLocaleDateString();
+      const status = doc.review_status || "new";
+      const periodMonth = doc.period_month || "";
+      const periodYear = doc.period_year || "";
+
+    html += `
+      <div class="doc-card">
+        <div class="doc-row">
+          <div style="flex:1;">
+            <div><b>📄 ${escapeHtml(doc.file_name)}</b></div>
+            <div class="doc-meta">
+              Uploaded: ${escapeHtml(date)}<br>
+              Status: <b>${escapeHtml(status)}</b><br>
+
+              Reviewed by: ${
+                doc.reviewed_by ? escapeHtml(doc.reviewed_by) : "—"
+              }<br>
+
+              Reviewed at: ${
+                doc.reviewed_at
+                  ? new Date(doc.reviewed_at).toLocaleString()
+                  : "—"
+              }
+            </div>
+
+          <div style="margin-top:8px;">
+            <textarea
+              id="doc-notes-${doc.id}"
+              placeholder="Add due diligence / review notes..."
+              style="width:100%; min-height:70px; padding:8px; border-radius:8px; border:1px solid #d9dee5; resize:vertical;"
+            >${escapeHtml(doc.notes || "")}</textarea>
+
+            <div style="margin-top:6px;">
+              <button onclick="saveDocumentNotes('${doc.id}', '${contractorId}')">
+                Save Notes
+              </button>
+            </div>
+          </div>
+
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+              <select onchange="updateDocumentStatus('${doc.id}', this.value, '${contractorId}')">
+                <option value="new" ${status === 'new' ? 'selected' : ''}>New</option>
+                <option value="in_review" ${status === 'in_review' ? 'selected' : ''}>In Review</option>
+                <option value="reviewed" ${status === 'reviewed' ? 'selected' : ''}>Reviewed</option>
+              </select>
+
+              <select onchange="updateDocumentMeta('${doc.id}', this.value, null, null, null, '${contractorId}')">
+                <option value="receipt" ${(doc.document_type || "other") === 'receipt' ? 'selected' : ''}>Receipt</option>
+                <option value="statement" ${(doc.document_type || "other") === 'statement' ? 'selected' : ''}>Statement</option>
+                <option value="invoice" ${(doc.document_type || "other") === 'invoice' ? 'selected' : ''}>Invoice</option>
+                <option value="other" ${(doc.document_type || "other") === 'other' ? 'selected' : ''}>Other</option>
+              </select>
+
+              <select onchange="updateDocumentMeta('${doc.id}', null, this.value, null, null, '${contractorId}')">
+                <option value="Meals" ${(doc.category || "Uncategorized") === 'Meals' ? 'selected' : ''}>Meals</option>
+                <option value="Gas" ${(doc.category || "Uncategorized") === 'Gas' ? 'selected' : ''}>Gas</option>
+                <option value="Insurance" ${(doc.category || "Uncategorized") === 'Insurance' ? 'selected' : ''}>Insurance</option>
+                <option value="Office Supplies" ${(doc.category || "Uncategorized") === 'Office Supplies' ? 'selected' : ''}>Office Supplies</option>
+                <option value="Advertising" ${(doc.category || "Uncategorized") === 'Advertising' ? 'selected' : ''}>Advertising</option>
+                <option value="Uncategorized" ${(doc.category || "Uncategorized") === 'Uncategorized' ? 'selected' : ''}>Uncategorized</option>
+              </select>
+              
+              <input
+                value="${escapeHtml(periodMonth)}"
+                placeholder="Month"
+                style="width:70px;"
+                onchange="updateDocumentMeta('${doc.id}', null, null, this.value, null, '${contractorId}')"
+              />
+
+              <input
+                value="${escapeHtml(periodYear)}"
+                placeholder="Year"
+                style="width:90px;"
+                onchange="updateDocumentMeta('${doc.id}', null, null, null, this.value, '${contractorId}')"
+              />
+            </div>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button onclick="openDocument('${doc.id}')">View</button>
+
+            <button 
+              onclick="analyzeDocument('${doc.id}', '${contractorId}')"
+              ${analyzingDocs[doc.id] ? 'disabled' : ''}
+            >
+              ${analyzingDocs[doc.id] ? 'Analyzing...' : 'Analyze'}
+            </button>
+
+            <button onclick="createEntryFromDoc('${doc.id}')">Manual Entry</button>
+
+            <button onclick="deleteDocument('${doc.id}', '${contractorId}')">
+              Delete
+            </button>
+          </div>
+        </div>
+
+        ${renderAnalysisDraft(doc.id, contractorId, analysisDrafts[doc.id])}
+      </div>
+    `;
+      });
+  }
+
+  html += `</div>`;
+});
+}
+html += `</div>`;
+});
+}
+html += `</div>`;
+return html;
+}
+
+div.innerHTML =
+  renderGroup("Receipts", grouped.receipt, contractorId + "-receipt") +
+  renderGroup("Statements", grouped.statement, contractorId + "-statement") +
+  renderGroup("Invoices", grouped.invoice, contractorId + "-invoice") +
+  renderGroup("Other", grouped.other, contractorId + "-other");
+         
+      } catch (err) {
+        console.error("Load documents error:", err);
+      }
+    }
+
+function toggleFolder(folderKey) {
+  openFolders[folderKey] = !openFolders[folderKey];
+}
+
+function toggleMonthFolder(monthKey) {
+  openMonthFolders[monthKey] = !openMonthFolders[monthKey];
+}
+
+function toggleCategoryFolder(categoryKey) {
+  openCategoryFolders[categoryKey] = !openCategoryFolders[categoryKey];
+}
+    
+function groupByMonthYear(docs) {
+  const groups = {};
+
+  docs.forEach(doc => {
+    const month = doc.period_month || "Unknown";
+    const year = doc.period_year || "Unknown";
+
+    const key = `${year}-${month}`;
+
+    if (!groups[key]) {
+      groups[key] = {
+        label: (month === "Unknown" || year === "Unknown")
+          ? "Undated"
+          : `${month}/${year}`,
+        docs: []
+      };
+    }
+
+    groups[key].docs.push(doc);
+  });
+
+  // Sort newest first
+  return Object.values(groups).sort((a, b) => {
+    const [ay, am] = a.label.split("/").map(Number);
+    const [by, bm] = b.label.split("/").map(Number);
+
+    if (!ay || !by) return 0;
+
+    return (by * 100 + bm) - (ay * 100 + am);
+  });
+}
+
+function groupByCategory(docs) {
+  const groups = {};
+
+  docs.forEach(doc => {
+    const raw = (doc.category || doc.document_type || "Uncategorized");
+    const category = String(raw).trim() || "Uncategorized";
+
+    if (!groups[category]) {
+      groups[category] = [];
+    }
+
+    groups[category].push(doc);
+  });
+
+  return Object.keys(groups)
+    .sort((a, b) => a.localeCompare(b))
+    .map(name => ({
+      label: name,
+      docs: groups[name]
+    }));
+}
+    
+function groupStaffDocuments(docs) {
+  return {
+    receipt: docs.filter(doc => (doc.document_type || "other") === "receipt"),
+    statement: docs.filter(doc => (doc.document_type || "other") === "statement"),
+    invoice: docs.filter(doc => (doc.document_type || "other") === "invoice"),
+    other: docs.filter(doc => {
+      const type = doc.document_type || "other";
+      return type !== "receipt" && type !== "statement" && type !== "invoice";
+    })
+  };
+}    
+function renderContractors(data) {
+  const div = document.getElementById("contractors");
+  div.className = "";
+  div.innerHTML = "";
+
+  if (!Array.isArray(data) || data.length === 0) {
+    div.innerHTML = `
+      <div class="contractors-empty">
+        No contractors found.
+      </div>
+    `;
+    return;
+  }
+
+  data.forEach(c => {
+    const portalLink = "contractor.html?contractorId=" + c.id;
+
+    div.innerHTML += `
+      <div class="contractor-card">
+        <div class="contractor-header">
+          <div>
+            <div class="contractor-name">${escapeHtml(c.contractor_name || "Unnamed Contractor")}</div>
+            <div class="contractor-subtext">Internal staff workspace for uploads, review, and contractor portal launching.</div>
+          </div>
+
+          <div class="card-toolbar">
+            <button class="portal-btn" onclick="openContractorPortal('${c.id}')">Open Contractor Portal</button>
+            <button class="copy-btn" onclick="copyContractorPortalLink('${c.id}')">Copy Portal Link</button>
+          </div>
+        </div>
+
+        <div class="contractor-meta">
+          <div><span class="meta-label">Owner:</span> ${escapeHtml(getStaffNameById(c.staff_user_id))}</div>
+          <div><span class="meta-label">Email:</span> ${escapeHtml(c.email || "—")}</div>
+          <div><span class="meta-label">Phone:</span> ${escapeHtml(c.phone || "—")}</div>
+          <div><span class="meta-label">Status:</span> ${escapeHtml(c.status || "active")}</div>
+          <div><span class="meta-label">Contractor ID:</span> ${escapeHtml(c.id)}</div>
+        </div>
+
+        <div class="portal-link-row">
+          <span class="meta-label">Portal URL:</span><br>
+          ${escapeHtml(portalLink)}
+        </div>
+
+        <div class="section-block">
+          <div class="section-title">Upload On Behalf Of Contractor</div>
+
+        <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+          <select id="doc-type-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+            <option value="receipt">Receipt</option>
+            <option value="statement">Bank / Card Statement</option>
+            <option value="invoice">Invoice</option>
+            <option value="other">Other</option>
+          </select>
+
+          <select id="doc-category-${c.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+            <option value="Uncategorized">Uncategorized</option>
+            <option value="Meals">Meals</option>
+            <option value="Gas">Gas</option>
+            <option value="Insurance">Insurance</option>
+            <option value="Office Supplies">Office Supplies</option>
+            <option value="Advertising">Advertising</option>
+          </select>
+        </div>
+
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <input 
+              id="period-month-${c.id}" 
+              placeholder="Month (1-12)" 
+              style="width:120px; padding:8px; border-radius:6px; border:1px solid #d9dee5;"
+            />
+            <input 
+              id="period-year-${c.id}" 
+              placeholder="Year (2025)" 
+              style="width:140px; padding:8px; border-radius:6px; border:1px solid #d9dee5;"
+            />
+          </div>
+          
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button onclick="takePhoto('${c.id}')">📸 Take Photo</button>
+            <button onclick="chooseFile('${c.id}')">📁 Choose File</button>
+            <button onclick="uploadPDF('${c.id}')">📄 Upload PDF</button>
+            <button onclick="scanDocument('${c.id}')">📚 Scan / Upload Document</button>
+          </div>
+        </div>
+
+        <div class="section-block">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+            <div class="section-title">Documents & Review Status</div>
+            <button class="soft-btn" onclick="analyzeBatchDocuments('${c.id}')">Analyze All Documents</button>
+          </div>
+          <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+        </div>
+
+      ${renderContractorAssignmentControls(c)}
+      </div>
+    `;
+
+    loadDocuments(c.id);
+  });
+}
+
+function renderContractorAssignmentControls(contractor) {
+  const user = getStoredStaffUser();
+  if (!user || user.role !== "admin") return "";
+
+  if (!staffDirectory || staffDirectory.length === 0) {
+    return `
+      <div class="section-block">
+        <div class="section-title">Assignment</div>
+        <div style="font-size:13px; color:#666;">
+          Load staff users to assign contractor.
+        </div>
+      </div>
+    `;
+  }
+
+  const options = staffDirectory.map(user => `
+    <option value="${user.id}" ${user.id === contractor.staff_user_id ? "selected" : ""}>
+      ${escapeHtml(user.full_name || user.email)}
+    </option>
+  `).join("");
+
+  return `
+    <div class="section-block">
+      <div class="section-title">Assign Contractor</div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <select id="assign-${contractor.id}" style="padding:10px; border-radius:8px; border:1px solid #d9dee5;">
+          ${options}
+        </select>
+
+        <button onclick="assignContractor('${contractor.id}')">
+          Update Owner
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+async function assignContractor(contractorId) {
+  const select = document.getElementById("assign-" + contractorId);
+  if (!select) return;
+  const staff_user_id = select.value;
+
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId + "/assign", {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({ staff_user_id })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Assignment failed");
+      return;
+    }
+
+    alert("Contractor reassigned successfully");
+    loadContractors();
+
+  } catch (err) {
+    console.error(err);
+    alert("Error assigning contractor");
+  }
+}
+    
+function filterContractors() {
+  const query = document.getElementById("searchInput").value.toLowerCase();
+
+  const filtered = allContractors.filter(c => {
+    return (
+      (c.contractor_name || "").toLowerCase().includes(query) ||
+      (c.email || "").toLowerCase().includes(query) ||
+      (c.phone || "").toLowerCase().includes(query) ||
+      (c.status || "").toLowerCase().includes(query)
+    );
+  });
+
+  renderContractors(filtered);
+}
+
+async function createEntryFromDoc(documentId) {
+  try {
+    const analyzeRes = await fetch(API + "/api/documents/" + documentId + "/analyze", {
+      method: "POST",
+      headers: getAuthHeaders()
+    });
+
+    const analyzeData = await analyzeRes.json();
+
+    if (!analyzeRes.ok) {
+      alert(analyzeData.error || "Failed to analyze document");
+      return;
+    }
+
+    openEntryReviewModal(documentId, analyzeData.suggested || {});
+  } catch (err) {
+    console.error(err);
+    alert("Error preparing entry");
+  }
+}
+
+function openEntryReviewModal(documentId, suggested) {
+  document.getElementById("entryReviewDocumentId").value = documentId;
+  document.getElementById("entryReviewType").value = suggested.entry_type || "expense";
+  document.getElementById("entryReviewAmount").value = suggested.amount || "";
+  document.getElementById("entryReviewCategory").value = suggested.category || "Uncategorized";
+  document.getElementById("entryReviewDate").value = suggested.entry_date || "";
+  document.getElementById("entryReviewVendor").value = suggested.vendor_or_payor || "";
+  document.getElementById("entryReviewDescription").value = suggested.description || "Created from document";
+
+  document.getElementById("entryReviewModal").style.display = "block";
+}
+
+function closeEntryReviewModal() {
+  document.getElementById("entryReviewModal").style.display = "none";
+}
+
+async function submitReviewedEntry() {
+  const documentId = document.getElementById("entryReviewDocumentId").value;
+  const entry_type = document.getElementById("entryReviewType").value;
+  const amount = document.getElementById("entryReviewAmount").value;
+  const category = document.getElementById("entryReviewCategory").value;
+  const entry_date = document.getElementById("entryReviewDate").value;
+  const vendor_or_payor = document.getElementById("entryReviewVendor").value;
+  const description = document.getElementById("entryReviewDescription").value;
+
+  if (!documentId) {
+    alert("Missing document");
+    return;
+  }
+
+  if (!amount || Number(amount) <= 0) {
+    alert("Enter a valid amount");
+    return;
+  }
+
+  if (!entry_date) {
+    alert("Entry date is required");
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        entry_type,
+        amount,
+        entry_date,
+        category,
+        description,
+        vendor_or_payor
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create entry");
+      return;
+    }
+
+    closeEntryReviewModal();
+    alert("Financial entry created");
+    console.log("ENTRY:", data);
+  } catch (err) {
+    console.error(err);
+    alert("Error creating entry");
+  }
+}
+    
+async function loadStaffUsers() {
+  const wrap = document.getElementById("staffUsersWrap");
+  if (!wrap) return;
+
+  wrap.className = "loading";
+  wrap.textContent = "Loading staff users...";
+
+  try {
+    const res = await fetch(API + "/api/staff", {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    staffDirectory = Array.isArray(data) ? data : [];
+
+    if (!res.ok) {
+      wrap.className = "";
+      wrap.innerHTML = `<div class="contractors-empty">Unable to load staff users.</div>`;
+      return;
+    }
+
+    if (!Array.isArray(data) || data.length === 0) {
+      wrap.className = "";
+      wrap.innerHTML = `<div class="contractors-empty">No staff users found.</div>`;
+      return;
+    }
+
+    wrap.className = "staff-directory-grid";
+    wrap.innerHTML = data.map(user => `
+      <div class="staff-card ${user.is_active ? "" : "inactive"}">
+        <div class="staff-card-top">
+          <div>
+            <div class="staff-name">${escapeHtml(user.full_name || "Unnamed Staff")}</div>
+            <div class="staff-email">${escapeHtml(user.email || "")}</div>
+          </div>
+
+          <button
+            class="${user.is_active ? 'soft-btn' : 'secondary-btn'}"
+            onclick="toggleStaffActive('${user.id}', ${!user.is_active})"
+          >
+            ${user.is_active ? 'Deactivate' : 'Activate'}
+          </button>
+        </div>
+
+        <div style="margin-top:12px;">
+          <span class="staff-status-pill ${user.is_active ? 'active' : 'inactive'}">
+            ${user.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+
+        <div class="staff-meta-grid">
+          <div><span class="meta-label">Role:</span> ${escapeHtml(user.role || "staff")}</div>
+          <div><span class="meta-label">Created:</span> ${new Date(user.created_at).toLocaleDateString()}</div>
+        </div>
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("Load staff users error:", err);
+    wrap.className = "";
+    wrap.innerHTML = `<div class="contractors-empty">Could not connect to load staff users.</div>`;
+  }
+}  
+    
+async function createStaffUser() {
+  const full_name = document.getElementById("staffFullName").value.trim();
+  const email = document.getElementById("staffEmail").value.trim();
+  const password = document.getElementById("staffPassword").value;
+  const role = document.getElementById("staffRole").value;
+
+  const box = document.getElementById("adminStatusBox");
+  box.className = "status";
+  box.textContent = "";
+
+  if (!email || !password) {
+    box.className = "status error";
+    box.textContent = "Email and temporary password are required.";
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/register", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        full_name,
+        email,
+        password,
+        role,
+        is_active: true
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      box.className = "status error";
+      box.textContent = data.error || "Unable to create staff user.";
+      return;
+    }
+
+    document.getElementById("staffFullName").value = "";
+    document.getElementById("staffEmail").value = "";
+    document.getElementById("staffPassword").value = "";
+    document.getElementById("staffRole").value = "staff";
+
+    box.className = "status success";
+    box.textContent = "Staff user created successfully.";
+
+    loadStaffUsers();
+  } catch (err) {
+    console.error("Create staff user error:", err);
+    box.className = "status error";
+    box.textContent = "Could not create staff user.";
+  }
+}
+async function toggleStaffActive(staffId, makeActive) {
+  const confirmed = confirm(
+    makeActive
+      ? "Activate this staff user?"
+      : "Deactivate this staff user?"
+  );
+
+  if (!confirmed) return;
+
+  const box = document.getElementById("adminStatusBox");
+  box.className = "status";
+  box.textContent = "";
+
+  try {
+    const res = await fetch(API + "/api/staff/" + staffId + "/toggle-active", {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        is_active: makeActive
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      box.className = "status error";
+      box.textContent = data.error || "Unable to update staff status.";
+      return;
+    }
+
+    box.className = "status success";
+    box.textContent = makeActive
+      ? "Staff user activated."
+      : "Staff user deactivated.";
+ 
+    loadStaffUsers();
+  } catch (err) {
+    console.error("Toggle staff active error:", err);
+    box.className = "status error";
+    box.textContent = "Could not update staff status.";
+  }
+}
+
+function toggleAdminSection() {
+  const body = document.getElementById("adminPanelBody");
+  const btn = document.getElementById("adminToggleBtn");
+
+  if (!body || !btn) return;
+
+  const isHidden = body.style.display === "none";
+
+  body.style.display = isHidden ? "grid" : "none";
+  btn.textContent = isHidden ? "Hide Admin Tools" : "Show Admin Tools";
+
+  if (isHidden) {
+    loadStaffUsers();
+  }
+}
+
+function initAdminPanel() {
+  const user = getStoredStaffUser();
+
+  if (user && user.role === "admin") {
+    const panel = document.getElementById("adminPanel");
+    const body = document.getElementById("adminPanelBody");
+    const btn = document.getElementById("adminToggleBtn");
+
+    if (panel) panel.style.display = "block";
+    if (body) body.style.display = "none";
+    if (btn) btn.textContent = "Show Admin Tools";
+  }
+}
+    
+(function initApp() {
+  const user = getStoredStaffUser();
+
+  if (!user || !user.id) {
+    window.location.href = "index.html";
+    return;
+  }
+
+  // 🔥 BLOCK ADMIN FROM THIS PAGE
+  if (user.role === "admin") {
+    window.location.href = "admin.html";
+    return;
+  }
+
+  loadContractors();
+  startIdleTracking();
+})();
+  </script>
+  </div>
+</body>
+</html>
