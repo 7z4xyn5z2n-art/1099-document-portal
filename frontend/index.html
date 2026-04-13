@@ -1965,25 +1965,47 @@ function filterContractors() {
 }
 
 async function createEntryFromDoc(documentId) {
-  const amountInput = prompt("Enter amount:");
-  if (amountInput === null || amountInput.trim() === "") return;
-
-  const entryDateInput = prompt("Enter entry date (YYYY-MM-DD):");
-  if (entryDateInput === null || entryDateInput.trim() === "") return;
-
   try {
+    // Step 1: Analyze first (get AI suggestions)
+    const analyzeRes = await fetch(API + "/api/documents/" + documentId + "/analyze", {
+      method: "POST",
+      headers: getAuthHeaders()
+    });
+
+    const analyzeData = await analyzeRes.json();
+
+    if (!analyzeRes.ok) {
+      alert(analyzeData.error || "Failed to analyze document");
+      return;
+    }
+
+    const suggested = analyzeData.suggested;
+
+    // Step 2: Show confirmation UI
+    const confirmed = confirm(
+      `Create Entry?\n\n` +
+      `Type: ${suggested.entry_type}\n` +
+      `Amount: $${suggested.amount}\n` +
+      `Category: ${suggested.category}\n` +
+      `Date: ${suggested.entry_date}\n\n` +
+      `Click OK to create entry`
+    );
+
+    if (!confirmed) return;
+
+    // Step 3: Create entry using AI data
     const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
       method: "POST",
       headers: getAuthHeaders({
         "Content-Type": "application/json"
       }),
       body: JSON.stringify({
-        entry_type: "expense",
-        entry_date: entryDateInput,
-        amount: Number(amountInput),
-        category: "Uncategorized",
-        description: "Created from document",
-        vendor_or_payor: ""
+        entry_type: suggested.entry_type,
+        amount: suggested.amount,
+        entry_date: suggested.entry_date,
+        category: suggested.category,
+        description: suggested.description,
+        vendor_or_payor: suggested.vendor_or_payor
       })
     });
 
@@ -1994,8 +2016,9 @@ async function createEntryFromDoc(documentId) {
       return;
     }
 
-    alert("Financial entry created successfully");
-    console.log("ENTRY CREATED:", data);
+    alert("✅ Financial entry created");
+
+    console.log("ENTRY:", data);
 
   } catch (err) {
     console.error(err);
