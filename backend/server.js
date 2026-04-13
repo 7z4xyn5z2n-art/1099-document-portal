@@ -581,12 +581,13 @@ app.post('/api/staff/login', async (req, res) => {
 */
 app.post('/api/contractors', requireStaffAuth, async (req, res) => {
   const {
-    contractor_name,
-    business_name,
-    email,
-    phone,
-    status
-  } = req.body;
+  contractor_name,
+  business_name,
+  email,
+  phone,
+  status,
+  staff_user_id
+} = req.body;
 
   if (!contractor_name) {
     return res.status(400).json({ error: 'contractor_name is required' });
@@ -600,9 +601,10 @@ app.post('/api/contractors', requireStaffAuth, async (req, res) => {
         business_name,
         email,
         phone,
-        status
+        status,
+        staff_user_id
       )
-      VALUES ($1, $2, $3, $4, $5)
+      VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
       `,
       [
@@ -610,7 +612,8 @@ app.post('/api/contractors', requireStaffAuth, async (req, res) => {
         business_name || null,
         email || null,
         phone || null,
-        status || 'active'
+        status || 'active',
+        staff_user_id || req.staffUser.id
       ]
     );
 
@@ -623,25 +626,53 @@ app.post('/api/contractors', requireStaffAuth, async (req, res) => {
 
 app.get('/api/contractors', requireStaffAuth, async (req, res) => {
   try {
-    const result = await pool.query(`
+  let result;
+
+  if (req.staffUser.role === 'admin') {
+    result = await pool.query(`
       SELECT *
       FROM contractors
       ORDER BY created_at DESC
     `);
-
-    res.json(result.rows);
-  } catch (error) {
-    console.error('List contractors error:', error);
-    res.status(500).json({ error: error.message });
+  } else {
+    result = await pool.query(
+      `
+      SELECT *
+      FROM contractors
+      WHERE staff_user_id = $1
+      ORDER BY created_at DESC
+      `,
+      [req.staffUser.id]
+    );
   }
+
+  res.json(result.rows);
+} catch (error) {
+  console.error('List contractors error:', error);
+  res.status(500).json({ error: error.message });
+}
 });
                       
 app.get('/api/contractors/:id', requireStaffAuth, async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT * FROM contractors WHERE id = $1`,
-      [req.params.id]
-    );
+    let result;
+
+    if (req.staffUser.role === 'admin') {
+      result = await pool.query(
+        `SELECT * FROM contractors WHERE id = $1`,
+        [req.params.id]
+      );
+    } else {
+      result = await pool.query(
+        `
+        SELECT *
+        FROM contractors
+        WHERE id = $1
+          AND staff_user_id = $2
+        `,
+        [req.params.id, req.staffUser.id]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Contractor not found' });
@@ -659,14 +690,28 @@ app.post('/api/contractors/:id/access-link', requireStaffAuth, async (req, res) 
     const contractorId = req.params.id;
     const { created_by } = req.body || {};
 
-    const contractorResult = await pool.query(
-      `SELECT * FROM contractors WHERE id = $1`,
-      [contractorId]
-    );
+    let contractorResult;
 
-    if (contractorResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Contractor not found' });
-    }
+if (req.staffUser.role === 'admin') {
+  contractorResult = await pool.query(
+    `SELECT * FROM contractors WHERE id = $1`,
+    [contractorId]
+  );
+} else {
+  contractorResult = await pool.query(
+    `
+    SELECT *
+    FROM contractors
+    WHERE id = $1
+      AND staff_user_id = $2
+    `,
+    [contractorId, req.staffUser.id]
+  );
+}
+
+if (contractorResult.rows.length === 0) {
+  return res.status(404).json({ error: 'Contractor not found' });
+}
 
     const accessToken = generateAccessToken();
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
@@ -700,6 +745,51 @@ app.post('/api/contractors/:id/access-link', requireStaffAuth, async (req, res) 
     res.status(500).json({ error: error.message });
   }
 });
+
+app.patch('/api/contractors/:id/assign', requireStaffAuth, requireAdmin, async (req, res) => {
+  try {
+    const { staff_user_id } = req.body;
+
+    if (!staff_user_id) {
+      return res.status(400).json({ error: 'staff_user_id is required' });
+    }
+
+    const staffResult = await pool.query(
+      `
+      SELECT id, full_name, email, role, is_active
+      FROM staff_users
+      WHERE id = $1
+        AND is_active = true
+      `,
+      [staff_user_id]
+    );
+
+    if (staffResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Assigned staff user not found' });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE contractors
+      SET staff_user_id = $1,
+          updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+      `,
+      [staff_user_id, req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Assign contractor error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
  app.get('/api/contractor-portal/session', async (req, res) => {
   try {
     const { token } = req.query;
@@ -964,18 +1054,33 @@ app.post('/api/documents/:documentId/create-entry', async (req, res) => {
   }
 });
 
-app.post('/api/documents/:documentId/analyze', async (req, res) => {
+app.post('/api/documents/:documentId/analyze', requireStaffAuth, async (req, res) => {
   const { documentId } = req.params;
 
   try {
-    const docResult = await pool.query(
-      `
-      SELECT *
-      FROM documents
-      WHERE id = $1
-      `,
-      [documentId]
-    );
+    let docResult;
+
+    if (req.staffUser.role === 'admin') {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        WHERE d.id = $1
+        `,
+        [documentId]
+      );
+    } else {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        JOIN contractors c ON c.id = d.contractor_id
+        WHERE d.id = $1
+          AND c.staff_user_id = $2
+        `,
+        [documentId, req.staffUser.id]
+      );
+    }
 
     if (docResult.rows.length === 0) {
       return res.status(404).json({ error: 'Document not found' });
@@ -1000,7 +1105,6 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
     const fileBuffer = Buffer.from(arrayBuffer);
 
     let mimeType = 'application/pdf';
-
     const fileName = String(doc.file_name || '').toLowerCase();
 
     if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
@@ -1018,8 +1122,7 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
     await pool.query(
       `
       UPDATE documents
-      SET
-        category = COALESCE($1, category)
+      SET category = COALESCE($1, category)
       WHERE id = $2
       `,
       [
@@ -1037,8 +1140,8 @@ app.post('/api/documents/:documentId/analyze', async (req, res) => {
       [doc.id]
     );
 
-const refreshedDoc = refreshedDocResult.rows[0] || doc;
-    
+    const refreshedDoc = refreshedDocResult.rows[0] || doc;
+
     res.json({
       document_id: refreshedDoc.id,
       contractor_id: refreshedDoc.contractor_id,
@@ -1061,10 +1164,33 @@ const refreshedDoc = refreshedDocResult.rows[0] || doc;
   }
 });
 
-app.post('/api/documents/analyze-batch/:contractorId', async (req, res) => {
+app.post('/api/documents/analyze-batch/:contractorId', requireStaffAuth, async (req, res) => {
   const { contractorId } = req.params;
 
   try {
+    let contractorResult;
+
+    if (req.staffUser.role === 'admin') {
+      contractorResult = await pool.query(
+        `SELECT id FROM contractors WHERE id = $1`,
+        [contractorId]
+      );
+    } else {
+      contractorResult = await pool.query(
+        `
+        SELECT id
+        FROM contractors
+        WHERE id = $1
+          AND staff_user_id = $2
+        `,
+        [contractorId, req.staffUser.id]
+      );
+    }
+
+    if (contractorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
     const docsResult = await pool.query(
       `
       SELECT *
@@ -1481,11 +1607,34 @@ app.post('/api/documents', requireStaffAuth, upload.single('file'), async (req, 
       notes
     } = req.body;
 
-    const file = req.file;
-
+     const file = req.file;
+    
     if (!contractor_id || !file) {
       return res.status(400).json({ error: 'contractor_id and file required' });
     }
+    
+let contractorResult;
+
+if (req.staffUser.role === 'admin') {
+  contractorResult = await pool.query(
+    `SELECT id FROM contractors WHERE id = $1`,
+    [contractor_id]
+  );
+} else {
+  contractorResult = await pool.query(
+    `
+    SELECT id
+    FROM contractors
+    WHERE id = $1
+      AND staff_user_id = $2
+    `,
+    [contractor_id, req.staffUser.id]
+  );
+}
+
+if (contractorResult.rows.length === 0) {
+  return res.status(404).json({ error: 'Contractor not found or access denied' });
+}
 
       const now = new Date();
       const effectiveYear = period_year || now.getFullYear();
@@ -1547,6 +1696,29 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
 */
 app.get('/api/documents/:contractorId', requireStaffAuth, async (req, res) => {
   try {
+    let contractorResult;
+
+    if (req.staffUser.role === 'admin') {
+      contractorResult = await pool.query(
+        `SELECT id FROM contractors WHERE id = $1`,
+        [req.params.contractorId]
+      );
+    } else {
+      contractorResult = await pool.query(
+        `
+        SELECT id
+        FROM contractors
+        WHERE id = $1
+          AND staff_user_id = $2
+        `,
+        [req.params.contractorId, req.staffUser.id]
+      );
+    }
+
+    if (contractorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
     const result = await pool.query(
       `
       SELECT *
@@ -1608,7 +1780,7 @@ app.get('/api/contractor-portal/documents', async (req, res) => {
 /*
   UPDATE DOCUMENT REVIEW STATUS
 */
-app.patch('/api/documents/:documentId/review-status', async (req, res) => {
+app.patch('/api/documents/:documentId/review-status', requireStaffAuth, async (req, res) => {
   try {
     const { review_status, reviewed_by } = req.body;
 
@@ -1619,6 +1791,34 @@ app.patch('/api/documents/:documentId/review-status', async (req, res) => {
     const allowed = ['new', 'in_review', 'reviewed'];
     if (!allowed.includes(review_status)) {
       return res.status(400).json({ error: 'Invalid review_status' });
+    }
+
+    let docResult;
+
+    if (req.staffUser.role === 'admin') {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        WHERE d.id = $1
+        `,
+        [req.params.documentId]
+      );
+    } else {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        JOIN contractors c ON c.id = d.contractor_id
+        WHERE d.id = $1
+          AND c.staff_user_id = $2
+        `,
+        [req.params.documentId, req.staffUser.id]
+      );
+    }
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
     }
 
     const result = await pool.query(
@@ -1641,19 +1841,43 @@ app.patch('/api/documents/:documentId/review-status', async (req, res) => {
       ]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
-
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update review status error:', err);
     res.status(500).json({ error: err.message });
   }
 });
-app.patch('/api/documents/:documentId', async (req, res) => {
+app.patch('/api/documents/:documentId', requireStaffAuth, async (req, res) => {
   try {
     const { document_type, category, period_month, period_year, notes } = req.body;
+
+    let docResult;
+
+    if (req.staffUser.role === 'admin') {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        WHERE d.id = $1
+        `,
+        [req.params.documentId]
+      );
+    } else {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        JOIN contractors c ON c.id = d.contractor_id
+        WHERE d.id = $1
+          AND c.staff_user_id = $2
+        `,
+        [req.params.documentId, req.staffUser.id]
+      );
+    }
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
 
     const result = await pool.query(
       `
@@ -1677,10 +1901,6 @@ app.patch('/api/documents/:documentId', async (req, res) => {
       ]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
-
     res.json(result.rows[0]);
   } catch (err) {
     console.error('Update document metadata error:', err);
@@ -1691,16 +1911,31 @@ app.patch('/api/documents/:documentId', async (req, res) => {
 /*
   GET TEMP VIEW URL FOR DOCUMENT
 */
-app.get('/api/documents/file/:documentId', async (req, res) => {
+app.get('/api/documents/file/:documentId', requireStaffAuth, async (req, res) => {
   try {
-    const result = await pool.query(
-      `
-      SELECT *
-      FROM documents
-      WHERE id = $1
-      `,
-      [req.params.documentId]
-    );
+    let result;
+
+    if (req.staffUser.role === 'admin') {
+      result = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        WHERE d.id = $1
+        `,
+        [req.params.documentId]
+      );
+    } else {
+      result = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        JOIN contractors c ON c.id = d.contractor_id
+        WHERE d.id = $1
+          AND c.staff_user_id = $2
+        `,
+        [req.params.documentId, req.staffUser.id]
+      );
+    }
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Document not found' });
@@ -1732,14 +1967,29 @@ app.delete('/api/documents/:documentId', requireStaffAuth, async (req, res) => {
   try {
     const { documentId } = req.params;
 
-    const docResult = await pool.query(
-      `
-      SELECT *
-      FROM documents
-      WHERE id = $1
-      `,
-      [documentId]
-    );
+    let docResult;
+
+    if (req.staffUser.role === 'admin') {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        WHERE d.id = $1
+        `,
+        [documentId]
+      );
+    } else {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        JOIN contractors c ON c.id = d.contractor_id
+        WHERE d.id = $1
+          AND c.staff_user_id = $2
+        `,
+        [documentId, req.staffUser.id]
+      );
+    }
 
     if (docResult.rows.length === 0) {
       return res.status(404).json({ error: 'Document not found' });
