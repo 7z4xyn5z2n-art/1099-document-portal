@@ -917,32 +917,7 @@ function startIdleTracking() {
       box.textContent = message;
     }
 
-    async function staffLogin() {
-  const email = prompt("Enter email:");
-  const password = prompt("Enter password:");
-
-  if (!email || !password) {
-    alert("Email and password required");
-    return;
-  }
-
-  try {
-    const res = await fetch(API + "/api/staff/login", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ email, password })
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      alert(data.error || "Login failed");
-      return;
-    }
-
-    // 🔥 THIS is the key line
+   // 🔥 THIS is the key line
     setStoredStaffUser(data.user);
 
     alert("Login successful");
@@ -1121,7 +1096,8 @@ async function handleLogin() {
 
   try {
     const res = await fetch(API + "/api/contractors", {
-      headers: getAuthHeaders()
+      headers: getAuthHeaders(),
+      cache: "no-store"
     });
     const data = await res.json();
 
@@ -1840,7 +1816,7 @@ function renderContractors(data) {
         </div>
 
         <div class="contractor-meta">
-          <div><span class="meta-label">Owner:</span> ${escapeHtml(getStaffNameById(c.staff_user_id))}</div>
+          <div><span class="meta-label">Owner:</span> ${escapeHtml(c.staff_user_id || "—")}</div>
           <div><span class="meta-label">Email:</span> ${escapeHtml(c.email || "—")}</div>
           <div><span class="meta-label">Phone:</span> ${escapeHtml(c.phone || "—")}</div>
           <div><span class="meta-label">Status:</span> ${escapeHtml(c.status || "active")}</div>
