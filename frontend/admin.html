@@ -1130,8 +1130,9 @@
             <div class="card-toolbar">
               <button class="portal-btn" onclick="openContractorPortal('${contractor.id}')">Open Portal</button>
               <button class="copy-btn" onclick="copyContractorPortalLink('${contractor.id}')">Copy Portal Link</button>
+              <button class="danger-btn" onclick="deleteContractor('${contractor.id}')">Delete</button>
             </div>
-          </div>
+            </div>
 
           <div class="contractor-meta">
             <div><span class="meta-label">Email:</span> ${escapeHtml(contractor.email || "—")}</div>
@@ -1195,6 +1196,32 @@
       }
     }
 
+    async function deleteContractor(contractorId) {
+  const confirmed = confirm("Are you sure you want to delete this contractor? This cannot be undone.");
+
+  if (!confirmed) return;
+
+  try {
+    const res = await fetch(API + "/api/contractors/" + contractorId, {
+      method: "DELETE",
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to delete contractor");
+      return;
+    }
+
+    alert("Contractor deleted");
+    loadContractors();
+  } catch (err) {
+    console.error("Delete contractor error:", err);
+    alert("Unable to delete contractor");
+  }
+}
+    
     async function initPage() {
       const currentUser = getStoredStaffUser();
 
