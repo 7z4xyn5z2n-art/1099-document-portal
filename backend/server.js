@@ -922,7 +922,7 @@ app.delete('/api/contractors/:id', requireStaffAuth, requireAdmin, async (req, r
 /*
   FINANCIAL ENTRIES
 */
-app.post('/api/entries', async (req, res) => {
+app.post('/api/entries', requireStaffAuth, async (req, res) => {
   const {
     contractor_id,
     document_id,
@@ -984,7 +984,7 @@ app.post('/api/entries', async (req, res) => {
   }
 });
 
-app.get('/api/entries/:contractorId/:year/:month', async (req, res) => {
+app.get('/api/entries/:contractorId/:year/:month', requireStaffAuth, async (req, res) => {
   const { contractorId, year, month } = req.params;
 
   try {
@@ -1057,7 +1057,7 @@ app.post('/api/entries/:entryId/notes', async (req, res) => {
   }
 });
 
-app.post('/api/documents/:documentId/create-entry', async (req, res) => {
+app.post('/api/documents/:documentId/create-entry', requireStaffAuth, async (req, res) => {
   try {
     const { documentId } = req.params;
     const {
@@ -1075,14 +1075,29 @@ app.post('/api/documents/:documentId/create-entry', async (req, res) => {
       });
     }
 
-    const docResult = await pool.query(
-      `
-      SELECT *
-      FROM documents
-      WHERE id = $1
-      `,
-      [documentId]
-    );
+    let docResult;
+
+if (req.staffUser.role === 'admin') {
+  docResult = await pool.query(
+    `
+    SELECT d.*
+    FROM documents d
+    WHERE d.id = $1
+    `,
+    [documentId]
+  );
+} else {
+  docResult = await pool.query(
+    `
+    SELECT d.*
+    FROM documents d
+    JOIN contractors c ON c.id = d.contractor_id
+    WHERE d.id = $1
+      AND c.staff_user_id = $2
+    `,
+    [documentId, req.staffUser.id]
+  );
+}
 
     if (docResult.rows.length === 0) {
       return res.status(404).json({ error: 'Document not found' });
@@ -1241,80 +1256,6 @@ app.post('/api/documents/:documentId/analyze', requireStaffAuth, async (req, res
   } catch (err) {
     console.error('Analyze document error:', err);
     res.status(500).json({ error: err.message || 'Failed to analyze document' });
-  }
-});
-
-app.post('/api/documents/:documentId/create-entry', requireStaffAuth, async (req, res) => {
-  try {
-    const { documentId } = req.params;
-
-    let docResult;
-
-    if (req.staffUser.role === 'admin') {
-      docResult = await pool.query(
-        `SELECT * FROM documents WHERE id = $1`,
-        [documentId]
-      );
-    } else {
-      docResult = await pool.query(
-        `
-        SELECT d.*
-        FROM documents d
-        JOIN contractors c ON c.id = d.contractor_id
-        WHERE d.id = $1
-          AND c.staff_user_id = $2
-        `,
-        [documentId, req.staffUser.id]
-      );
-    }
-
-    if (docResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Document not found' });
-    }
-
-    const doc = docResult.rows[0];
-
-    const amount = Number(req.body.amount || 0);
-    const entry_date = req.body.entry_date || new Date().toISOString().slice(0, 10);
-    const category = req.body.category || doc.category || 'Uncategorized';
-    const entry_type = req.body.entry_type || (doc.document_type === 'invoice' ? 'income' : 'expense');
-
-    const result = await pool.query(
-      `
-      INSERT INTO financial_entries (
-        contractor_id,
-        document_id,
-        entry_type,
-        category,
-        amount,
-        entry_date,
-        description,
-        vendor_or_payor,
-        source,
-        created_by
-      )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-      RETURNING *
-      `,
-      [
-        doc.contractor_id,
-        doc.id,
-        entry_type,
-        category,
-        amount,
-        entry_date,
-        req.body.description || 'Created from document',
-        req.body.vendor_or_payor || '',
-        'manual',
-        req.staffUser.email || 'staff'
-      ]
-    );
-
-    res.json(result.rows[0]);
-
-  } catch (err) {
-    console.error('Create financial entry error:', err);
-    res.status(500).json({ error: err.message });
   }
 });
 
@@ -1478,7 +1419,7 @@ res.json({
 /*
   ADMIN REVIEW / CORRECTION
 */
-app.patch('/api/entries/:id/review', async (req, res) => {
+app.patch('/api/entries/:id/review', requireStaffAuth, async (req, res) => {
   const {
     reviewed_amount,
     reviewed_category,
