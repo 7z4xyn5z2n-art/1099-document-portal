@@ -1548,8 +1548,13 @@
               <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                 <div class="section-title">Documents & Review Status</div>
                 <button class="soft-btn" onclick="analyzeBatchDocuments('${c.id}')">Analyze All Documents</button>
+                <button class="soft-btn" onclick="showMonthlyEntries('${c.id}')">View Monthly Entries</button>
+                <button class="soft-btn" onclick="generateMonthlyReport('${c.id}')">Generate Draft P&L</button>
+                <button class="soft-btn" onclick="viewSavedReports('${c.id}')">View Saved Reports</button>
+                <button class="soft-btn" onclick="viewMonthlySummary('${c.id}')">View Monthly Summary</button>
               </div>
               <div id="docs-${c.id}" style="margin-top:12px; font-size:13px;"></div>
+              <div id="entries-${c.id}" style="margin-top:10px;"></div>
             </div>
           </div>
         `;
@@ -1562,6 +1567,251 @@
       });
     }
 
+async function loadEntries(contractorId, year, month) {
+  try {
+    const res = await fetch(API + "/api/entries/" + contractorId + "/" + year + "/" + month, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to load entries");
+      return [];
+    }
+
+    return Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error("Load entries error:", err);
+    alert("Unable to load entries");
+    return [];
+  }
+}
+
+async function showMonthlyEntries(contractorId) {
+  const month = prompt("Enter month number (1-12):");
+  if (!month) return;
+
+  const year = prompt("Enter year (example: 2026):");
+  if (!year) return;
+
+  const entries = await loadEntries(contractorId, year, month);
+
+  const wrap = document.getElementById("entries-" + contractorId);
+  if (!wrap) return;
+
+  wrap.setAttribute("data-current-month", month);
+  wrap.setAttribute("data-current-year", year);
+
+  if (!entries.length) {
+    wrap.innerHTML = "<div style='color:#666;'>No entries found.</div>";
+    return;
+  }
+
+  wrap.innerHTML = entries.map(e => {
+    const amount = e.reviewed_amount ?? e.original_amount ?? 0;
+    const category = e.reviewed_category || e.original_category || "Uncategorized";
+    const type = e.entry_type || "expense";
+    const date = e.entry_date || "";
+
+    return `
+      <div style="padding:8px; border:1px solid #ddd; border-radius:6px; margin-bottom:6px;">
+        <div>
+          <b>${date}</b> | ${type} | $${amount} | ${category}
+        </div>
+
+        <div style="margin-top:6px;">
+          <button onclick="editEntry('${e.id}', '${contractorId}')">Edit</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function generateMonthlyReport(contractorId) {
+  const month = prompt("Enter month number (1-12):");
+  if (!month) return;
+
+  const year = prompt("Enter year (example: 2026):");
+  if (!year) return;
+
+  try {
+    const res = await fetch(API + "/api/reports/generate/" + contractorId, {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        month: Number(month),
+        year: Number(year)
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to generate report");
+      return;
+    }
+
+  const wrap = document.getElementById("entries-" + contractorId);
+  if (!wrap) return;
+
+  wrap.innerHTML = `
+    <div style="padding:10px; border:1px solid #ddd; border-radius:8px; background:#f9fafb;">
+      <b>Draft P&L</b><br><br>
+      Income: $${data.summary?.gross_income ?? 0}<br>
+      Expenses: $${data.summary?.total_expenses ?? 0}<br>
+      Net Profit: $${data.summary?.net_profit ?? 0}
+    </div>
+  `;
+} catch (err) {
+    console.error("Generate monthly report error:", err);
+    alert("Unable to generate report");
+  }
+}
+async function viewSavedReports(contractorId) {
+  try {
+    const res = await fetch(API + "/api/reports/" + contractorId, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to load reports");
+      return;
+    }
+
+    if (!data.length) {
+      alert("No saved reports found");
+      return;
+    }
+
+    const message = data.slice(0, 10).map(report => {
+      return (
+        "Month: " + report.month +
+        " | Year: " + report.year +
+        " | Version: " + report.version_number +
+        " | Status: " + report.status
+      );
+    }).join("\n");
+
+    alert(message);
+  } catch (err) {
+    console.error("View saved reports error:", err);
+    alert("Unable to load reports");
+  }
+}
+
+async function viewMonthlySummary(contractorId) {
+  const month = prompt("Enter month number (1-12):");
+  if (!month) return;
+
+  const year = prompt("Enter year (example: 2026):");
+  if (!year) return;
+
+  try {
+    const res = await fetch(API + "/api/monthly-summary/" + contractorId + "/" + year + "/" + month, {
+      headers: getAuthHeaders()
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to load monthly summary");
+      return;
+    }
+
+    let categoryText = "";
+    const categories = data.expense_categories || {};
+
+    Object.keys(categories).forEach(key => {
+      categoryText += key + ": $" + categories[key] + "\n";
+    });
+
+    alert(
+      "Monthly Summary\n\n" +
+      "Income: $" + (data.gross_income ?? 0) + "\n" +
+      "Expenses: $" + (data.total_expenses ?? 0) + "\n" +
+      "Net Profit: $" + (data.net_profit ?? 0) + "\n\n" +
+      "Categories:\n" + (categoryText || "No expense categories yet")
+    );
+  } catch (err) {
+    console.error("View monthly summary error:", err);
+    alert("Unable to load monthly summary");
+  }
+}
+
+async function editEntry(entryId, contractorId) {
+  const newAmount = prompt("Enter new amount:");
+  if (!newAmount) return;
+
+  const newCategory = prompt("Enter new category:");
+  if (!newCategory) return;
+
+  try {
+    const res = await fetch(API + "/api/entries/" + entryId + "/review", {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        reviewed_amount: Number(newAmount),
+        reviewed_category: newCategory
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Unable to update entry");
+      return;
+    }
+
+    alert("Entry updated");
+
+const wrap = document.getElementById("entries-" + contractorId);
+const month = wrap?.getAttribute("data-current-month");
+const year = wrap?.getAttribute("data-current-year");
+
+if (month && year) {
+  const entries = await loadEntries(contractorId, year, month);
+
+  if (!wrap) return;
+
+  if (!entries.length) {
+    wrap.innerHTML = "<div style='color:#666;'>No entries found.</div>";
+    return;
+  }
+
+  wrap.innerHTML = entries.map(e => {
+    const amount = e.reviewed_amount ?? e.original_amount ?? 0;
+    const category = e.reviewed_category || e.original_category || "Uncategorized";
+    const type = e.entry_type || "expense";
+    const date = e.entry_date || "";
+
+    return `
+      <div style="padding:8px; border:1px solid #ddd; border-radius:6px; margin-bottom:6px;">
+        <div>
+          <b>${date}</b> | ${type} | $${amount} | ${category}
+        </div>
+
+        <div style="margin-top:6px;">
+          <button onclick="editEntry('${e.id}', '${contractorId}')">Edit</button>
+        </div>
+      </div>
+    `;
+  }).join("");
+} else {
+  showMonthlyEntries(contractorId);
+}
+  } catch (err) {
+    console.error("Edit entry error:", err);
+    alert("Update failed");
+  }
+}
+    
     function filterContractors() {
       const query = document.getElementById("searchInput").value.toLowerCase();
 
@@ -1576,7 +1826,7 @@
 
       renderContractors(filtered);
     }
-
+  
     async function createEntryFromDoc(documentId, contractorId) {
       try {
         const analyzeRes = await fetch(API + "/api/documents/" + documentId + "/analyze", {
