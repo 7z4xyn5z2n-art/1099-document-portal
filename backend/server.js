@@ -847,6 +847,28 @@ app.patch('/api/contractors/:id/assign', requireStaffAuth, requireAdmin, async (
   }
 });
 
+app.delete('/api/contractors/:id', requireStaffAuth, requireAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `
+      DELETE FROM contractors
+      WHERE id = $1
+      RETURNING id
+      `,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
+    res.json({ message: 'Contractor deleted' });
+  } catch (error) {
+    console.error('Delete contractor error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
  app.get('/api/contractor-portal/session', async (req, res) => {
   try {
     const { token } = req.query;
