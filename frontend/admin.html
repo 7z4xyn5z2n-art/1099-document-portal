@@ -2116,39 +2116,120 @@ async function loadStaffUsers() {
 
     wrap.className = "staff-directory-grid";
     wrap.innerHTML = data.map(user => `
-      <div class="staff-card ${user.is_active ? "" : "inactive"}">
-        <div class="staff-card-top">
-          <div>
-            <div class="staff-name">${escapeHtml(user.full_name || "Unnamed Staff")}</div>
-            <div class="staff-email">${escapeHtml(user.email || "")}</div>
-          </div>
+  <div class="staff-card ${user.is_active ? "" : "inactive"}">
+    <div class="staff-card-top">
+      <div style="flex:1;">
+        
+        <input
+          id="staff-name-${user.id}"
+          value="${escapeHtml(user.full_name || "")}"
+          placeholder="Full name"
+          style="margin-bottom:8px;"
+        />
 
-          <button
-            class="${user.is_active ? 'soft-btn' : 'secondary-btn'}"
-            onclick="toggleStaffActive('${user.id}', ${!user.is_active})"
-          >
-            ${user.is_active ? 'Deactivate' : 'Activate'}
-          </button>
-        </div>
+        <input
+          id="staff-email-${user.id}"
+          value="${escapeHtml(user.email || "")}"
+          placeholder="Email"
+          style="margin-bottom:8px;"
+        />
 
-        <div style="margin-top:12px;">
-          <span class="staff-status-pill ${user.is_active ? 'active' : 'inactive'}">
-            ${user.is_active ? 'Active' : 'Inactive'}
-          </span>
-        </div>
+        <input
+          id="staff-phone-${user.id}"
+          value="${escapeHtml(user.phone || "")}"
+          placeholder="Phone"
+          style="margin-bottom:8px;"
+        />
 
-        <div class="staff-meta-grid">
-          <div><span class="meta-label">Role:</span> ${escapeHtml(user.role || "staff")}</div>
-          <div><span class="meta-label">Created:</span> ${new Date(user.created_at).toLocaleDateString()}</div>
-        </div>
+        <select id="staff-role-${user.id}">
+          <option value="staff" ${user.role === "staff" ? "selected" : ""}>Staff</option>
+          <option value="manager" ${user.role === "manager" ? "selected" : ""}>Manager</option>
+          <option value="admin" ${user.role === "admin" ? "selected" : ""}>Admin</option>
+        </select>
+
       </div>
-    `).join("");
+
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <button class="primary-btn" onclick="saveStaffUser('${user.id}')">
+          Save
+        </button>
+
+        <button
+          class="${user.is_active ? 'soft-btn' : 'secondary-btn'}"
+          onclick="toggleStaffActive('${user.id}', ${!user.is_active})"
+        >
+          ${user.is_active ? 'Deactivate' : 'Activate'}
+        </button>
+      </div>
+    </div>
+
+    <div style="margin-top:12px;">
+      <span class="staff-status-pill ${user.is_active ? 'active' : 'inactive'}">
+        ${user.is_active ? 'Active' : 'Inactive'}
+      </span>
+    </div>
+
+    <div class="staff-meta-grid">
+      <div><span class="meta-label">Role:</span> ${escapeHtml(user.role || "staff")}</div>
+      <div><span class="meta-label">Created:</span> ${new Date(user.created_at).toLocaleDateString()}</div>
+    </div>
+  </div>
+`).join("");
   } catch (err) {
     console.error("Load staff users error:", err);
     wrap.className = "";
     wrap.innerHTML = `<div class="contractors-empty">Could not connect to load staff users.</div>`;
   }
 }  
+
+async function saveStaffUser(staffId) {
+  const full_name = document.getElementById("staff-name-" + staffId)?.value.trim() || "";
+  const email = document.getElementById("staff-email-" + staffId)?.value.trim() || "";
+  const phone = document.getElementById("staff-phone-" + staffId)?.value.trim() || "";
+  const role = document.getElementById("staff-role-" + staffId)?.value || "staff";
+
+  const box = document.getElementById("adminStatusBox");
+  box.className = "status";
+  box.textContent = "";
+
+  if (!email) {
+    box.className = "status error";
+    box.textContent = "Email is required.";
+    return;
+  }
+
+  try {
+    const res = await fetch(API + "/api/staff/" + staffId, {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        full_name,
+        email,
+        phone,
+        role
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      box.className = "status error";
+      box.textContent = data.error || "Unable to update staff user.";
+      return;
+    }
+
+    box.className = "status success";
+    box.textContent = "Staff user updated successfully.";
+
+    loadStaffUsers();
+  } catch (err) {
+    console.error("Save staff user error:", err);
+    box.className = "status error";
+    box.textContent = "Could not update staff user.";
+  }
+}
     
 async function createStaffUser() {
   const full_name = document.getElementById("staffFullName").value.trim();
