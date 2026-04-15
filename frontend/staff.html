@@ -465,6 +465,11 @@
             </div>
 
             <div>
+              <label for="businessName">Business Name</label>
+              <input id="businessName" placeholder="Enter business name" />
+            </div>
+            
+            <div>
               <label for="email">Email</label>
               <input id="email" placeholder="Enter email address" />
             </div>
@@ -744,6 +749,7 @@
           }),
           body: JSON.stringify({
             contractor_name: name,
+            business_name: document.getElementById("businessName").value.trim(),
             email: email,
             phone: phone
           })
@@ -1480,6 +1486,7 @@
             <div class="contractor-header">
               <div>
                 <div class="contractor-name">${escapeHtml(c.contractor_name || "Unnamed Contractor")}</div>
+                <div class="contractor-subtext">${escapeHtml(c.business_name || "No business name on file")}</div>
                 <div class="contractor-subtext">Internal staff workspace for uploads, review, and contractor portal launching.</div>
               </div>
 
@@ -1621,7 +1628,7 @@ async function showMonthlyEntries(contractorId) {
         </div>
 
         <div style="margin-top:6px;">
-          <button onclick="editEntry('${e.id}', '${contractorId}')">Edit</button>
+          <button onclick="toggleEntryEditForm('${e.id}')">Edit</button>
         </div>
       </div>
     `;
@@ -1798,7 +1805,7 @@ if (month && year) {
         </div>
 
         <div style="margin-top:6px;">
-          <button onclick="editEntry('${e.id}', '${contractorId}')">Edit</button>
+          <button onclick="toggleEntryEditForm('${e.id}')">Edit</button>
         </div>
       </div>
     `;
@@ -1941,6 +1948,60 @@ if (month && year) {
       loadContractors();
       startIdleTracking();
     })();
+   function toggleEntryEditForm(entryId) {
+  const existing = document.getElementById("edit-form-" + entryId);
+
+  if (existing) {
+    existing.remove();
+    return;
+  }
+
+  const container = document.querySelector(`[onclick="toggleEntryEditForm('${entryId}')"]`).parentElement;
+
+  const form = document.createElement("div");
+  form.id = "edit-form-" + entryId;
+  form.style.marginTop = "6px";
+
+  form.innerHTML = `
+    <input id="edit-amount-${entryId}" placeholder="Amount" style="width:90px; margin-right:6px;" />
+    <input id="edit-category-${entryId}" placeholder="Category" style="width:120px; margin-right:6px;" />
+    <button onclick="saveEntryEdit('${entryId}')">Save</button>
+  `;
+
+  container.appendChild(form);
+} 
+
+  async function saveEntryEdit(entryId) {
+  const amount = document.getElementById("edit-amount-" + entryId).value;
+  const category = document.getElementById("edit-category-" + entryId).value;
+
+  try {
+    const res = await fetch(API + "/api/entries/" + entryId + "/review", {
+      method: "PATCH",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        reviewed_amount: Number(amount),
+        reviewed_category: category
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Update failed");
+      return;
+    }
+
+    alert("Entry updated");
+    loadContractors();
+  } catch (err) {
+    console.error("Save edit error:", err);
+    alert("Update failed");
+  }
+}
+    
   </script>
 </body>
 </html>
