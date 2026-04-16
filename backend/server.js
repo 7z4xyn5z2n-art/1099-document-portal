@@ -193,10 +193,13 @@ function parseStatementAmount(raw) {
 
   if (!cleaned) return null;
 
-  const number = Number(cleaned);
-  if (Number.isNaN(number)) return null;
+    const number = Number(cleaned);
+    if (Number.isNaN(number)) return null;
 
-  return Math.abs(number).toFixed(2);
+    return {
+      amount: Math.abs(number).toFixed(2),
+      direction: number < 0 ? 'expense' : 'income'
+    };
 }
 
 function normalizeStatementDate(raw, fallbackYear) {
@@ -254,25 +257,25 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     const rawAmount = match[3];
 
     const entryDate = normalizeStatementDate(rawDate, fallbackYear);
-    const amount = parseStatementAmount(rawAmount);
+    const parsedAmount = parseStatementAmount(rawAmount);
     const description = cleanStatementDescription(rawDescription);
 
-    if (!entryDate || !amount || !description) continue;
+    if (!entryDate || !parsedAmount || !description) continue;
 
     const categoryGuess = guessCategoryFromText(description);
-    const key = `${entryDate}|${description}|${amount}`;
+    const key = `${entryDate}|${description}|${parsedAmount.amount}|${parsedAmount.direction}`;
 
     if (seen.has(key)) continue;
     seen.add(key);
 
     transactions.push({
       entry_date: entryDate,
-      amount,
+      amount: parsedAmount.amount,
       vendor_or_payor: description.slice(0, 80),
       description: `Imported from statement: ${description}`.slice(0, 200),
       category: categoryGuess.category,
       confidence: categoryGuess.confidence,
-      entry_type: 'expense'
+      entry_type: parsedAmount.direction
     });
   }
 
