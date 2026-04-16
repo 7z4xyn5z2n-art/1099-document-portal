@@ -1961,9 +1961,12 @@ async function matchReceiptsToTransactions(contractorId) {
   if (!month) return;
 
   try {
-    const res = await fetch(API + "/api/entries/match-receipts/" + contractorId + "/" + year + "/" + month, {
-      headers: getAuthHeaders()
-    });
+    const res = await fetch(
+      API + "/api/entries/match-receipts/" + contractorId + "/" + year + "/" + month,
+      {
+        headers: getAuthHeaders()
+      }
+    );
 
     const data = await res.json();
 
@@ -1972,25 +1975,60 @@ async function matchReceiptsToTransactions(contractorId) {
       return;
     }
 
-        const wrap = document.getElementById("matches-" + contractorId);
-        if (!wrap) {
-          alert(
-            "Matches: " + data.match_count + "\n" +
-            "Unmatched Receipts: " + data.unmatched_receipt_count + "\n" +
-            "Unmatched Transactions: " + data.unmatched_transaction_count
-          );
-          return;
-      }
+    const wrap = document.getElementById("matches-" + contractorId);
 
-    wrap.innerHTML = `
-      <div style="padding:10px; border:1px solid #d9dee5; border-radius:8px; background:#f9fafb;">
-        <div style="font-weight:700; margin-bottom:8px;">Receipt Matching Results</div>
-        <div>Matches: ${data.match_count}</div>
-        <div>Unmatched Receipts: ${data.unmatched_receipt_count}</div>
-        <div>Unmatched Transactions: ${data.unmatched_transaction_count}</div>
-      </div>
-    `;
-    
+    const matchedPairsHtml =
+      Array.isArray(data.matches) && data.matches.length
+        ? data.matches.map(function(match) {
+            return (
+              "Receipt: " + match.receipt_entry_id +
+              " → Transaction: " + match.transaction_entry_id +
+              " (Score: " + match.score + ")"
+            );
+          }).join("<br>")
+        : "No matched pairs";
+
+    const unmatchedReceiptsHtml =
+      Array.isArray(data.unmatched_receipts) && data.unmatched_receipts.length
+        ? data.unmatched_receipts.join("<br>")
+        : "None";
+
+    const unmatchedTransactionsHtml =
+      Array.isArray(data.unmatched_transactions) && data.unmatched_transactions.length
+        ? data.unmatched_transactions.join("<br>")
+        : "None";
+
+    if (!wrap) {
+      alert(
+        "Matches: " + data.match_count + "\n" +
+        "Unmatched Receipts: " + data.unmatched_receipt_count + "\n" +
+        "Unmatched Transactions: " + data.unmatched_transaction_count
+      );
+      return;
+    }
+
+    wrap.innerHTML =
+      '<div style="padding:10px; border:1px solid #d9dee5; border-radius:8px; background:#f9fafb;">' +
+        '<div style="font-weight:700; margin-bottom:8px;">Receipt Matching Results</div>' +
+        '<div>Matches: ' + data.match_count + '</div>' +
+        '<div>Unmatched Receipts: ' + data.unmatched_receipt_count + '</div>' +
+        '<div>Unmatched Transactions: ' + data.unmatched_transaction_count + '</div>' +
+
+        '<div style="margin-top:10px;">' +
+          '<div style="font-weight:700; margin-bottom:4px;">Matched Pairs</div>' +
+          '<div style="font-size:12px; color:#444;">' + matchedPairsHtml + '</div>' +
+        '</div>' +
+
+        '<div style="margin-top:10px;">' +
+          '<div style="font-weight:700; margin-bottom:4px;">Unmatched Receipt IDs</div>' +
+          '<div style="font-size:12px; color:#444;">' + unmatchedReceiptsHtml + '</div>' +
+        '</div>' +
+
+        '<div style="margin-top:10px;">' +
+          '<div style="font-weight:700; margin-bottom:4px;">Unmatched Transaction IDs</div>' +
+          '<div style="font-size:12px; color:#444;">' + unmatchedTransactionsHtml + '</div>' +
+        '</div>' +
+      '</div>';
   } catch (err) {
     console.error("Match error:", err);
     alert("Matching failed");
