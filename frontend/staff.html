@@ -1040,7 +1040,10 @@
           return;
         }
 
-        analysisDrafts[documentId] = data.suggested;
+            analysisDrafts[documentId] = {
+              ...data.suggested,
+              transactions: Array.isArray(data.transactions) ? data.transactions : []
+            };
         analyzingDocs[documentId] = false;
         loadDocuments(contractorId);
       } catch (err) {
@@ -1069,15 +1072,16 @@
         data.results.forEach(result => {
           if (result.status !== "success") return;
 
-          analysisDrafts[result.document_id] = {
-            entry_type: result.suggested.entry_type || "expense",
-            amount: result.suggested.amount || "0.00",
-            entry_date: result.suggested.entry_date,
-            category: result.suggested.category,
-            description: result.suggested.description,
-            vendor_or_payor: result.suggested.vendor_or_payor,
-            confidence: result.suggested.confidence
-          };
+        analysisDrafts[result.document_id] = {
+          entry_type: result.suggested.entry_type || "expense",
+          amount: result.suggested.amount || "0.00",
+          entry_date: result.suggested.entry_date,
+          category: result.suggested.category,
+          description: result.suggested.description,
+          vendor_or_payor: result.suggested.vendor_or_payor,
+          confidence: result.suggested.confidence,
+          transactions: Array.isArray(result.transactions) ? result.transactions : []
+        };
         });
 
         alert(`${data.success_count} succeeded, ${data.error_count} failed`);
@@ -1092,7 +1096,124 @@
       delete analysisDrafts[documentId];
       loadDocuments(contractorId);
     }
+    function rerenderStatementDraft(documentId, contractorId) {
+      loadDocuments(contractorId);
+    }
+  function renderStatementTransactionsPreview(documentId, contractorId, draft) {
+  if (!draft || !Array.isArray(draft.transactions) || draft.transactions.length === 0) {
+    return "";
+  }
 
+  return `
+    <details style="margin-top:12px;">
+      <summary style="cursor:pointer; font-weight:700; color:#174b73; margin-bottom:10px;">
+        Review Statement Transactions (${draft.transactions.length})
+      </summary>
+
+            <div style="
+        border:1px solid #cfe0f5;
+        border-radius:10px;
+        background:#ffffff;
+        margin-top:10px;
+      ">
+        <div style="padding:10px 12px; border-bottom:1px solid #e4edf7; background:#f7fbff;">
+          <input
+            id="statement-search-${documentId}"
+            placeholder="Search transactions by vendor or description"
+            oninput="rerenderStatementDraft('${documentId}', '${contractorId}')"
+            style="width:100%; padding:8px 10px; border-radius:8px; border:1px solid #d9dee5; font-size:12px;"
+          />
+        </div>
+
+        <div style="
+          max-height:320px;
+          overflow:auto;
+        ">
+        <div style="
+          display:grid;
+          grid-template-columns:110px 1fr 110px 160px;
+          gap:8px;
+          padding:10px 12px;
+          font-size:12px;
+          font-weight:700;
+          color:#174b73;
+          border-bottom:1px solid #e4edf7;
+          background:#f7fbff;
+          position:sticky;
+          top:0;
+        ">
+          <div>Date</div>
+          <div>Description</div>
+          <div>Amount</div>
+          <div>Category</div>
+        </div>
+
+           ${draft.transactions
+            .filter((tx) => {
+              const searchInput = document.getElementById("statement-search-" + documentId);
+              const searchValue = searchInput ? searchInput.value.toLowerCase() : "";
+
+              if (!searchValue) return true;
+
+              const text = (tx.vendor_or_payor || tx.description || "").toLowerCase();
+              return text.includes(searchValue);
+            })
+              .map((tx, index) => `
+              
+          <div style="
+            display:grid;
+            grid-template-columns:140px 1fr 120px 160px;
+            gap:8px;
+            padding:10px 12px;
+            font-size:12px;
+            border-bottom:1px solid #eef3f8;
+            align-items:start;
+          ">
+            <div>
+              <input
+                id="statement-date-${documentId}-${index}"
+                type="date"
+                value="${escapeHtml(tx.entry_date || "")}"
+                style="width:100%; padding:6px; border-radius:6px; border:1px solid #d9dee5; font-size:12px;"
+              />
+            </div>
+
+            <div>
+              <input
+                id="statement-description-${documentId}-${index}"
+                value="${escapeHtml(tx.vendor_or_payor || tx.description || "")}"
+                style="width:100%; padding:6px; border-radius:6px; border:1px solid #d9dee5; font-size:12px;"
+              />
+            </div>
+
+            <div>
+              <input
+                id="statement-amount-${documentId}-${index}"
+                value="${escapeHtml(tx.amount || "0.00")}"
+                style="width:100%; padding:6px; border-radius:6px; border:1px solid #d9dee5; font-size:12px;"
+              />
+            </div>
+
+            <div>
+              <select
+                id="statement-category-${documentId}-${index}"
+                style="width:100%; padding:6px; border-radius:6px; border:1px solid #d9dee5; font-size:12px;"
+              >
+                <option value="Meals" ${(tx.category || "Uncategorized") === "Meals" ? "selected" : ""}>Meals</option>
+                <option value="Gas" ${(tx.category || "Uncategorized") === "Gas" ? "selected" : ""}>Gas</option>
+                <option value="Insurance" ${(tx.category || "Uncategorized") === "Insurance" ? "selected" : ""}>Insurance</option>
+                <option value="Office Supplies" ${(tx.category || "Uncategorized") === "Office Supplies" ? "selected" : ""}>Office Supplies</option>
+                <option value="Advertising" ${(tx.category || "Uncategorized") === "Advertising" ? "selected" : ""}>Advertising</option>
+                <option value="Uncategorized" ${(tx.category || "Uncategorized") === "Uncategorized" ? "selected" : ""}>Uncategorized</option>
+              </select>
+            </div>
+          </div>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+    
     async function confirmAnalyzedEntry(documentId, contractorId) {
       const entryType = document.getElementById("analysis-entry-type-" + documentId)?.value || "expense";
       const amount = document.getElementById("analysis-amount-" + documentId)?.value || "";
@@ -1111,33 +1232,94 @@
         return;
       }
 
-      try {
-        const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
-          method: "POST",
-          headers: getAuthHeaders({
-            "Content-Type": "application/json"
-          }),
-          body: JSON.stringify({
-            entry_type: entryType,
-            entry_date: entryDate,
-            amount: Number(amount),
-            category: category,
-            description: description,
-            vendor_or_payor: vendor
-          })
-        });
+  try {
+    const draft = analysisDrafts[documentId];
 
-        const data = await res.json();
+       if (draft && Array.isArray(draft.transactions) && draft.transactions.length > 0) {
+           const updatedTransactions = draft.transactions.map((tx, index) => {
+        const categorySelect = document.getElementById("statement-category-" + documentId + "-" + index);
+        const dateInput = document.getElementById("statement-date-" + documentId + "-" + index);
+        const descriptionInput = document.getElementById("statement-description-" + documentId + "-" + index);
+        const amountInput = document.getElementById("statement-amount-" + documentId + "-" + index);
 
-        if (!res.ok) {
-          alert(data.error || "Failed to create entry");
-          return;
-        }
+        const updatedDescription = descriptionInput
+          ? descriptionInput.value.trim()
+          : (tx.vendor_or_payor || tx.description || "");
 
-        delete analysisDrafts[documentId];
-        alert("Financial entry created successfully");
-        loadDocuments(contractorId);
-      } catch (err) {
+        return {
+          ...tx,
+          entry_date: dateInput ? dateInput.value : (tx.entry_date || ""),
+          vendor_or_payor: updatedDescription,
+          description: updatedDescription
+            ? ("Imported from statement: " + updatedDescription)
+            : (tx.description || "Imported from statement"),
+          amount: amountInput ? amountInput.value : (tx.amount || "0.00"),
+          category: categorySelect ? categorySelect.value : (tx.category || "Uncategorized")
+        };
+      });
+
+            const invalidRowIndex = updatedTransactions.findIndex(tx => {
+        const hasDate = !!String(tx.entry_date || "").trim();
+        const hasDescription = !!String(tx.vendor_or_payor || tx.description || "").trim();
+        const amountNumber = Number(tx.amount);
+
+        return !hasDate || !hasDescription || Number.isNaN(amountNumber) || amountNumber <= 0;
+      });
+
+      if (invalidRowIndex !== -1) {
+        alert("Statement row " + (invalidRowIndex + 1) + " is missing a valid date, description, or amount");
+        return;
+      }
+
+      const res = await fetch(API + "/api/documents/" + documentId + "/create-statement-entries", {
+        method: "POST",
+        headers: getAuthHeaders({
+          "Content-Type": "application/json"
+        }),
+        body: JSON.stringify({
+          transactions: updatedTransactions
+        })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to create statement entries");
+        return;
+      }
+
+      delete analysisDrafts[documentId];
+      alert(data.created_count + " statement entries created successfully");
+      loadDocuments(contractorId);
+      return;
+    }
+
+    const res = await fetch(API + "/api/documents/" + documentId + "/create-entry", {
+      method: "POST",
+      headers: getAuthHeaders({
+        "Content-Type": "application/json"
+      }),
+      body: JSON.stringify({
+        entry_type: entryType,
+        entry_date: entryDate,
+        amount: Number(amount),
+        category: category,
+        description: description,
+        vendor_or_payor: vendor
+      })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to create entry");
+      return;
+    }
+
+    delete analysisDrafts[documentId];
+    alert("Financial entry created successfully");
+    loadDocuments(contractorId);
+  } catch (err) {
         console.error("Confirm analyzed entry error:", err);
         alert("Error creating entry");
       }
@@ -1148,7 +1330,11 @@
 
       return `
         <div class="analysis-box">
-          <div class="analysis-title">Draft Analysis Ready For Review</div>
+          <div class="analysis-title">
+            ${draft.transactions && draft.transactions.length > 0
+            ? `Statement Detected (${draft.transactions.length} transactions)`
+            : `Draft Analysis Ready For Review`}
+          </div>
 
           <div class="analysis-grid">
             <div>
@@ -1188,6 +1374,8 @@
           <div class="analysis-confidence">
             Confidence: ${escapeHtml(draft.confidence || "low")}
           </div>
+
+          ${renderStatementTransactionsPreview(documentId, contractorId, draft)}  
 
           <div class="analysis-actions">
             <button class="secondary-btn" onclick="confirmAnalyzedEntry('${documentId}', '${contractorId}')">
