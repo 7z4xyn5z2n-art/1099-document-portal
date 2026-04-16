@@ -387,30 +387,44 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const transactions = [];
   const seen = new Set();
 
-  for (const line of lines) {
-    const match = line.match(
-      /^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/
-    );
+  const skipPhrases = [
+    'date description amount',
+    'checking summary',
+    'deposits and additions',
+    'atm & debit card withdrawals',
+    'atm & debit card summary',
+    'electronic withdrawals',
+    'other withdrawals',
+    'daily ending balance',
+    'total atm withdrawals',
+    'total card purchases',
+    'total card deposits',
+    'beginning balance',
+    'ending balance',
+    'customer service information',
+    'page ',
+    '*start*',
+    '*end*'
+  ];
 
-    if (!match) continue;
+  function shouldSkipLine(line) {
+    const text = String(line || '').toLowerCase();
+    return skipPhrases.some(phrase => text.includes(phrase));
+  }
 
-    const rawDate = match[1];
-    const rawDescription = match[2];
-    const rawAmount = match[3];
-
+  function pushTransaction(rawDate, rawDescription, rawAmount) {
     const entryDate = normalizeStatementDate(rawDate, fallbackYear);
     const parsedAmount = parseStatementAmount(rawAmount);
     const description = cleanStatementDescription(rawDescription);
 
-    if (!entryDate || !parsedAmount || !description) continue;
+    if (!entryDate || !parsedAmount || !description) return;
 
     const categoryGuess = guessCategoryFromText(description);
-    const key = `${entryDate}|${description}|${parsedAmount.amount}|${parsedAmount.direction}`;
-
-    if (seen.has(key)) continue;
-    seen.add(key);
-
     const detectedType = detectStatementEntryType(description, parsedAmount.direction);
+    const key = `${entryDate}|${description}|${parsedAmount.amount}|${detectedType}`;
+
+    if (seen.has(key)) return;
+    seen.add(key);
 
     transactions.push({
       entry_date: entryDate,
@@ -421,6 +435,53 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       confidence: categoryGuess.confidence,
       entry_type: detectedType
     });
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (shouldSkipLine(line)) continue;
+
+    const oneLineMatch = line.match(
+      /^(\d{2}\/\d{2})(?:\s+(\d{2}\/\d{2}))?\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))$/
+    );
+
+    if (oneLineMatch) {
+      const rawDate = oneLineMatch[1];
+      const rawDescription = oneLineMatch[3];
+      const rawAmount = oneLineMatch[4];
+      pushTransaction(rawDate, rawDescription, rawAmount);
+      continue;
+    }
+
+    const startsWithDate = line.match(/^(\d{2}\/\d{2})\s+(.+)$/);
+    if (!startsWithDate) continue;
+
+    let rawDate = startsWithDate[1];
+    let descriptionParts = [startsWithDate[2]];
+    let rawAmount = null;
+
+    for (let j = i + 1; j < lines.length; j++) {
+      const nextLine = lines[j];
+
+      if (shouldSkipLine(nextLine)) break;
+
+      if (/^\d{2}\/\d{2}(?:\s+\d{2}\/\d{2})?\s+/.test(nextLine)) {
+        break;
+      }
+
+      if (/^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})$/.test(nextLine)) {
+        rawAmount = nextLine;
+        i = j;
+        break;
+      }
+
+      descriptionParts.push(nextLine);
+      i = j;
+    }
+
+    if (rawAmount) {
+      pushTransaction(rawDate, descriptionParts.join(' '), rawAmount);
+    }
   }
 
   return transactions;
