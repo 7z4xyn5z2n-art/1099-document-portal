@@ -295,6 +295,89 @@ function detectStatementEntryType(description, fallbackType) {
   return fallbackType || 'expense';
 }
 
+function normalizeMatchText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isWithinDays(dateA, dateB, maxDays) {
+  if (!dateA || !dateB) return false;
+
+  const a = new Date(dateA);
+  const b = new Date(dateB);
+
+  if (Number.isNaN(a.getTime()) || Number.isNaN(b.getTime())) return false;
+
+  const diffMs = Math.abs(a.getTime() - b.getTime());
+  const diffDays = diffMs / (1000 * 60 * 60 * 24);
+
+  return diffDays <= maxDays;
+}
+
+function isLikelyReceiptTransactionMatch(receipt, transaction) {
+  const receiptAmount = Number(receipt.amount || receipt.original_amount || 0);
+  const transactionAmount = Number(transaction.amount || transaction.original_amount || 0);
+
+  if (!receiptAmount || !transactionAmount) {
+    return { matched: false, score: 0, reason: 'missing amount' };
+  }
+
+  const amountDiff = Math.abs(receiptAmount - transactionAmount);
+  if (amountDiff > 0.01) {
+    return { matched: false, score: 0, reason: 'amount mismatch' };
+  }
+
+  const receiptDate =
+    receipt.entry_date ||
+    receipt.created_at ||
+    receipt.reviewed_at ||
+    null;
+
+  const transactionDate =
+    transaction.entry_date ||
+    transaction.created_at ||
+    transaction.reviewed_at ||
+    null;
+
+  const dateClose = isWithinDays(receiptDate, transactionDate, 7);
+
+  const receiptText = normalizeMatchText(
+    receipt.vendor_or_payor ||
+    receipt.original_vendor_or_payor ||
+    receipt.description ||
+    receipt.original_description ||
+    ''
+  );
+
+  const transactionText = normalizeMatchText(
+    transaction.vendor_or_payor ||
+    transaction.original_vendor_or_payor ||
+    transaction.description ||
+    transaction.original_description ||
+    ''
+  );
+
+  const textMatched =
+    !!receiptText &&
+    !!transactionText &&
+    (receiptText.includes(transactionText) || transactionText.includes(receiptText));
+
+  let score = 0;
+
+  if (amountDiff <= 0.01) score += 60;
+  if (dateClose) score += 25;
+  if (textMatched) score += 15;
+
+  return {
+    matched: score >= 75,
+    score,
+    reason: score >= 75 ? 'likely match' : 'weak match'
+  };
+}
+
 function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const lines = String(fullText || '')
     .split('\n')
@@ -1698,6 +1781,129 @@ app.post('/api/documents/:documentId/create-statement-entries', requireStaffAuth
     res.status(500).json({ error: error.message });
   }
 });
+
+app.get('/api/entries/match-receipts/:contractorId/:year/:month', requireStaffAuth, async (req, res) => {
+  try {
+    const { contractorId, year, month } = req.params;
+
+    let contractorResult;
+
+    if (req.staffUser.role === 'admin') {
+      contractorResult = await pool.query(
+        `SELECT id FROM contractors WHERE id = $1`,
+        [contractorId]
+      );
+    } else {
+      contractorResult = await pool.query(
+        `
+        SELECT id
+        FROM contractors
+        WHERE id = $1
+          AND staff_user_id = $2
+        `,
+        [contractorId, req.staffUser.id]
+      );
+    }
+
+    if (contractorResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Contractor not found' });
+    }
+
+    const entriesResult = await pool.query(
+      `
+      SELECT *
+      FROM financial_entries
+      WHERE contractor_id = $1
+        AND year = $2
+        AND month = $3
+        AND included_in_pl = true
+      ORDER BY entry_date DESC, created_at DESC
+      `,
+      [contractorId, year, month]
+    );
+
+    const rows = entriesResult.rows;
+
+    const receiptEntries = rows.filter(row => {
+      const sourceType = String(row.source_type || '').toLowerCase();
+      return sourceType === 'document' || sourceType === 'receipt';
+    });
+
+    const transactionEntries = rows.filter(row => {
+      const sourceType = String(row.source_type || '').toLowerCase();
+      return sourceType === 'statement';
+    });
+
+    const matches = [];
+    const unmatchedReceipts = [];
+    const unmatchedTransactions = [...transactionEntries];
+
+    for (const receipt of receiptEntries) {
+      let bestMatch = null;
+
+      for (const transaction of transactionEntries) {
+        const result = isLikelyReceiptTransactionMatch(
+          {
+            amount: receipt.reviewed_amount ?? receipt.original_amount,
+            entry_date: receipt.entry_date,
+            vendor_or_payor: receipt.reviewed_vendor_or_payor ?? receipt.original_vendor_or_payor,
+            description: receipt.reviewed_description ?? receipt.original_description,
+            created_at: receipt.created_at,
+            reviewed_at: receipt.reviewed_at
+          },
+          {
+            amount: transaction.reviewed_amount ?? transaction.original_amount,
+            entry_date: transaction.entry_date,
+            vendor_or_payor: transaction.reviewed_vendor_or_payor ?? transaction.original_vendor_or_payor,
+            description: transaction.reviewed_description ?? transaction.original_description,
+            created_at: transaction.created_at,
+            reviewed_at: transaction.reviewed_at
+          }
+        );
+
+        if (!result.matched) continue;
+
+        if (!bestMatch || result.score > bestMatch.score) {
+          bestMatch = {
+            score: result.score,
+            reason: result.reason,
+            transaction
+          };
+        }
+      }
+
+      if (bestMatch) {
+        matches.push({
+          receipt_entry_id: receipt.id,
+          transaction_entry_id: bestMatch.transaction.id,
+          score: bestMatch.score,
+          reason: bestMatch.reason
+        });
+
+        const index = unmatchedTransactions.findIndex(t => t.id === bestMatch.transaction.id);
+        if (index !== -1) unmatchedTransactions.splice(index, 1);
+      } else {
+        unmatchedReceipts.push(receipt.id);
+      }
+    }
+
+    res.json({
+      contractor_id: contractorId,
+      month: Number(month),
+      year: Number(year),
+      match_count: matches.length,
+      unmatched_receipt_count: unmatchedReceipts.length,
+      unmatched_transaction_count: unmatchedTransactions.length,
+      matches,
+      unmatched_receipts: unmatchedReceipts,
+      unmatched_transactions: unmatchedTransactions.map(t => t.id)
+    });
+  } catch (error) {
+    console.error('Receipt transaction matching error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.patch('/api/entries/:id/review', requireStaffAuth, async (req, res) => {
   const {
     reviewed_amount,
@@ -1777,6 +1983,12 @@ app.get('/api/monthly-summary/:contractorId/:year/:month', async (req, res) => {
     for (const row of entriesResult.rows) {
       const amount = Number(row.amount || 0);
 
+      const normalizedCategory = String(row.category || '').toLowerCase();
+
+      if (normalizedCategory === 'transfer') {
+        continue;
+      }
+
       if (row.entry_type === 'income') {
         gross_income += amount;
       } else if (row.entry_type === 'expense') {
@@ -1845,6 +2057,12 @@ app.post('/api/reports/generate/:contractorId', async (req, res) => {
 
     for (const row of entriesResult.rows) {
       const amount = Number(row.amount || 0);
+
+      const normalizedCategory = String(row.category || '').toLowerCase();
+
+      if (normalizedCategory === 'transfer') {
+        continue;
+      }
 
       if (row.entry_type === 'income') {
         gross_income += amount;
