@@ -379,7 +379,7 @@ function isLikelyReceiptTransactionMatch(receipt, transaction) {
 }
 
 function parseStatementTransactionsFromText(fullText, fallbackYear) {
-  const lines = String(fullText || '')
+  const rawLines = String(fullText || '')
     .split('\n')
     .map(line => line.trim())
     .filter(Boolean);
@@ -396,20 +396,41 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     'electronic withdrawals',
     'other withdrawals',
     'daily ending balance',
-    'total atm withdrawals',
-    'total card purchases',
-    'total card deposits',
     'beginning balance',
     'ending balance',
     'customer service information',
-    'page ',
+    'chase business complete checking',
+    'total deposits and additions',
+    'total atm & debit card withdrawals',
+    'total electronic withdrawals',
+    'total other withdrawals',
+    'total atm withdrawals',
+    'total card purchases',
+    'total card deposits',
+    'atm & debit card totals',
     '*start*',
-    '*end*'
+    '*end*',
+    'page '
   ];
 
   function shouldSkipLine(line) {
     const text = String(line || '').toLowerCase();
+    if (!text) return true;
     return skipPhrases.some(phrase => text.includes(phrase));
+  }
+
+  function cleanChaseLine(line) {
+    return String(line || '')
+      .replace(/\s+total atm withdrawals.*$/i, '')
+      .replace(/\s+total card purchases.*$/i, '')
+      .replace(/\s+total card deposits.*$/i, '')
+      .replace(/\s+atm & debit card totals.*$/i, '')
+      .replace(/\s+checking summary.*$/i, '')
+      .replace(/\s+daily ending balance.*$/i, '')
+      .replace(/\s+electronic withdrawals.*$/i, '')
+      .replace(/\s+other withdrawals.*$/i, '')
+      .replace(/\s+deposits and additions.*$/i, '')
+      .trim();
   }
 
   function pushTransaction(rawDate, rawDescription, rawAmount) {
@@ -418,6 +439,7 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     const description = cleanStatementDescription(rawDescription);
 
     if (!entryDate || !parsedAmount || !description) return;
+    if (shouldSkipLine(description)) return;
 
     const categoryGuess = guessCategoryFromText(description);
     const detectedType = detectStatementEntryType(description, parsedAmount.direction);
@@ -437,9 +459,11 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     });
   }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = cleanChaseLine(rawLines[i]);
     if (shouldSkipLine(line)) continue;
+
+    if (!/^\d{2}\/\d{2}\b/.test(line)) continue;
 
     const oneLineMatch = line.match(
       /^(\d{2}\/\d{2})(?:\s+(\d{2}\/\d{2}))?\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))$/
@@ -447,7 +471,7 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
 
     if (oneLineMatch) {
       const rawDate = oneLineMatch[1];
-      const rawDescription = oneLineMatch[3];
+      const rawDescription = cleanChaseLine(oneLineMatch[3]);
       const rawAmount = oneLineMatch[4];
       pushTransaction(rawDate, rawDescription, rawAmount);
       continue;
@@ -456,18 +480,15 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     const startsWithDate = line.match(/^(\d{2}\/\d{2})\s+(.+)$/);
     if (!startsWithDate) continue;
 
-    let rawDate = startsWithDate[1];
-    let descriptionParts = [startsWithDate[2]];
+    const rawDate = startsWithDate[1];
+    let descriptionParts = [cleanChaseLine(startsWithDate[2])];
     let rawAmount = null;
 
-    for (let j = i + 1; j < lines.length; j++) {
-      const nextLine = lines[j];
+    for (let j = i + 1; j < rawLines.length; j++) {
+      let nextLine = cleanChaseLine(rawLines[j]);
 
       if (shouldSkipLine(nextLine)) break;
-
-      if (/^\d{2}\/\d{2}(?:\s+\d{2}\/\d{2})?\s+/.test(nextLine)) {
-        break;
-      }
+      if (/^\d{2}\/\d{2}\b/.test(nextLine)) break;
 
       if (/^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})$/.test(nextLine)) {
         rawAmount = nextLine;
