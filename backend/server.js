@@ -161,6 +161,18 @@ function guessCategoryFromText(textSource) {
     return { category: 'Insurance', confidence: 'high' };
   }
 
+    if (
+    text.includes('transfer') ||
+    text.includes('zelle') ||
+    text.includes('venmo') ||
+    text.includes('cash app') ||
+    text.includes('cashapp') ||
+    text.includes('internal transfer') ||
+    text.includes('online transfer')
+  ) {
+    return { category: 'Transfer', confidence: 'medium' };
+  }
+  
   if (
     text.includes('office') ||
     text.includes('staples') ||
@@ -235,6 +247,53 @@ function cleanStatementDescription(raw) {
     .replace(/^[^a-zA-Z0-9]+/, '')
     .trim();
 }
+function detectStatementEntryType(description, fallbackType) {
+  const text = String(description || '').toLowerCase();
+
+  if (
+    text.includes('transfer') ||
+    text.includes('zelle') ||
+    text.includes('venmo') ||
+    text.includes('cash app') ||
+    text.includes('cashapp')
+  ) {
+    return fallbackType;
+  }
+
+  if (
+    text.includes('refund') ||
+    text.includes('reversal') ||
+    text.includes('return credit') ||
+    text.includes('credit back')
+  ) {
+    return 'income';
+  }
+
+  if (
+    text.includes('deposit') ||
+    text.includes('payment received') ||
+    text.includes('direct deposit') ||
+    text.includes('ach credit') ||
+    text.includes('stripe') ||
+    text.includes('square payout') ||
+    text.includes('paypal transfer')
+  ) {
+    return 'income';
+  }
+
+  if (
+    text.includes('withdrawal') ||
+    text.includes('debit card') ||
+    text.includes('pos') ||
+    text.includes('purchase') ||
+    text.includes('ach debit') ||
+    text.includes('card purchase')
+  ) {
+    return 'expense';
+  }
+
+  return fallbackType || 'expense';
+}
 
 function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const lines = String(fullText || '')
@@ -268,6 +327,8 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     if (seen.has(key)) continue;
     seen.add(key);
 
+    const detectedType = detectStatementEntryType(description, parsedAmount.direction);
+
     transactions.push({
       entry_date: entryDate,
       amount: parsedAmount.amount,
@@ -275,7 +336,7 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       description: `Imported from statement: ${description}`.slice(0, 200),
       category: categoryGuess.category,
       confidence: categoryGuess.confidence,
-      entry_type: parsedAmount.direction
+      entry_type: detectedType
     });
   }
 
