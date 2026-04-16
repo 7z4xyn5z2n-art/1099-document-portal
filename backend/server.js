@@ -182,6 +182,102 @@ function guessCategoryFromText(textSource) {
 
   return { category: 'Uncategorized', confidence: 'low' };
 }
+function parseStatementAmount(raw) {
+  if (!raw) return null;
+
+  const cleaned = String(raw)
+    .replace(/\$/g, '')
+    .replace(/,/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+
+  if (!cleaned) return null;
+
+  const number = Number(cleaned);
+  if (Number.isNaN(number)) return null;
+
+  return Math.abs(number).toFixed(2);
+}
+
+function normalizeStatementDate(raw, fallbackYear) {
+  if (!raw) return null;
+
+  const value = String(raw).trim();
+
+  const mmddyyyy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mmddyyyy) {
+    const [, mm, dd, yyyy] = mmddyyyy;
+    return `${yyyy}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  }
+
+  const mmddyy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+  if (mmddyy) {
+    const [, mm, dd, yy] = mmddyy;
+    const fullYear = Number(yy) >= 70 ? `19${yy}` : `20${yy}`;
+    return `${fullYear}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  }
+
+  const mmdd = value.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mmdd && fallbackYear) {
+    const [, mm, dd] = mmdd;
+    return `${fallbackYear}-${String(mm).padStart(2, '0')}-${String(dd).padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
+function cleanStatementDescription(raw) {
+  return String(raw || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .trim();
+}
+
+function parseStatementTransactionsFromText(fullText, fallbackYear) {
+  const lines = String(fullText || '')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean);
+
+  const transactions = [];
+  const seen = new Set();
+
+  for (const line of lines) {
+    const match = line.match(
+      /^(\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})?)$/
+    );
+
+    if (!match) continue;
+
+    const rawDate = match[1];
+    const rawDescription = match[2];
+    const rawAmount = match[3];
+
+    const entryDate = normalizeStatementDate(rawDate, fallbackYear);
+    const amount = parseStatementAmount(rawAmount);
+    const description = cleanStatementDescription(rawDescription);
+
+    if (!entryDate || !amount || !description) continue;
+
+    const categoryGuess = guessCategoryFromText(description);
+    const key = `${entryDate}|${description}|${amount}`;
+
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    transactions.push({
+      entry_date: entryDate,
+      amount,
+      vendor_or_payor: description.slice(0, 80),
+      description: `Imported from statement: ${description}`.slice(0, 200),
+      category: categoryGuess.category,
+      confidence: categoryGuess.confidence,
+      entry_type: 'expense'
+    });
+  }
+
+  return transactions;
+}
 
 async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
   if (!documentAiClient) {
@@ -261,6 +357,25 @@ if (cleanedVendor.length > 60) {
     rawVendor || '',
     fullText || '',
   ].join(' ');
+
+  if (String(doc.document_type || '').toLowerCase() === 'statement') {
+    const fallbackYear =
+      doc.period_year ||
+      new Date().getFullYear();
+
+    const transactions = parseStatementTransactionsFromText(fullText, fallbackYear);
+
+    return {
+      amount: transactions[0]?.amount || '0.00',
+      vendor_or_payor: cleanedVendor || 'Bank Statement',
+      entry_date: transactions[0]?.entry_date || new Date().toISOString().slice(0, 10),
+      category: transactions[0]?.category || 'Uncategorized',
+      confidence: transactions.length > 0 ? 'medium' : 'low',
+      description: 'Draft created from statement analysis',
+      raw_text_preview: fullText.slice(0, 1000),
+      transactions
+    };
+  }
 
   const categoryGuess = guessCategoryFromText(combinedText);
 
@@ -1237,7 +1352,7 @@ app.post('/api/documents/:documentId/analyze', requireStaffAuth, async (req, res
 
     const refreshedDoc = refreshedDocResult.rows[0] || doc;
 
-    res.json({
+       res.json({
       document_id: refreshedDoc.id,
       contractor_id: refreshedDoc.contractor_id,
       file_name: refreshedDoc.file_name,
@@ -1251,8 +1366,10 @@ app.post('/api/documents/:documentId/analyze', requireStaffAuth, async (req, res
         description: analysis.description || 'Draft created from document analysis',
         vendor_or_payor: analysis.vendor_or_payor || '',
         confidence: analysis.confidence || 'low'
-      }
+      },
+      transactions: Array.isArray(analysis.transactions) ? analysis.transactions : []
     });
+    
   } catch (err) {
     console.error('Analyze document error:', err);
     res.status(500).json({ error: err.message || 'Failed to analyze document' });
@@ -1370,7 +1487,7 @@ app.post('/api/documents/analyze-batch/:contractorId', requireStaffAuth, async (
 
     const refreshedDoc = refreshedDocResult.rows[0] || doc;
 
-    results.push({
+      results.push({
       document_id: refreshedDoc.id,
       file_name: refreshedDoc.file_name,
       document_type: refreshedDoc.document_type || 'other',
@@ -1384,7 +1501,8 @@ app.post('/api/documents/analyze-batch/:contractorId', requireStaffAuth, async (
         description: analysis.description || 'Draft created from document analysis',
         vendor_or_payor: analysis.vendor_or_payor || '',
         confidence: analysis.confidence || 'low'
-      }
+      },
+      transactions: Array.isArray(analysis.transactions) ? analysis.transactions : []
     });
 
   } catch (err) {
@@ -1419,6 +1537,103 @@ res.json({
 /*
   ADMIN REVIEW / CORRECTION
 */
+app.post('/api/documents/:documentId/create-statement-entries', requireStaffAuth, async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const { transactions } = req.body || {};
+
+    if (!Array.isArray(transactions) || transactions.length === 0) {
+      return res.status(400).json({ error: 'transactions array is required' });
+    }
+
+    let docResult;
+
+    if (req.staffUser.role === 'admin') {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        WHERE d.id = $1
+        `,
+        [documentId]
+      );
+    } else {
+      docResult = await pool.query(
+        `
+        SELECT d.*
+        FROM documents d
+        JOIN contractors c ON c.id = d.contractor_id
+        WHERE d.id = $1
+          AND c.staff_user_id = $2
+        `,
+        [documentId, req.staffUser.id]
+      );
+    }
+
+    if (docResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    const doc = docResult.rows[0];
+
+    const inserted = [];
+
+    for (const tx of transactions) {
+      const entryDate = tx.entry_date;
+      const amount = Number(tx.amount || 0);
+
+      if (!entryDate || !amount) continue;
+
+      const month = doc.period_month || new Date(entryDate).getMonth() + 1;
+      const year = doc.period_year || new Date(entryDate).getFullYear();
+
+      const result = await pool.query(
+        `
+        INSERT INTO financial_entries (
+          contractor_id,
+          document_id,
+          entry_type,
+          source_type,
+          entry_date,
+          month,
+          year,
+          original_amount,
+          original_category,
+          original_description,
+          original_vendor_or_payor
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        RETURNING *
+        `,
+        [
+          doc.contractor_id,
+          doc.id,
+          tx.entry_type || 'expense',
+          'statement',
+          entryDate,
+          month,
+          year,
+          amount,
+          tx.category || 'Uncategorized',
+          tx.description || 'Imported from statement',
+          tx.vendor_or_payor || null
+        ]
+      );
+
+      inserted.push(result.rows[0]);
+    }
+
+    res.status(201).json({
+      message: 'Statement entries created',
+      document_id: doc.id,
+      created_count: inserted.length,
+      entries: inserted
+    });
+  } catch (error) {
+    console.error('Create statement entries error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 app.patch('/api/entries/:id/review', requireStaffAuth, async (req, res) => {
   const {
     reviewed_amount,
