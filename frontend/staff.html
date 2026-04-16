@@ -1129,24 +1129,25 @@
           max-height:320px;
           overflow:auto;
         ">
-        <div style="
-          display:grid;
-          grid-template-columns:110px 1fr 110px 160px;
-          gap:8px;
-          padding:10px 12px;
-          font-size:12px;
-          font-weight:700;
-          color:#174b73;
-          border-bottom:1px solid #e4edf7;
-          background:#f7fbff;
-          position:sticky;
-          top:0;
-        ">
-          <div>Date</div>
-          <div>Description</div>
-          <div>Amount</div>
-          <div>Category</div>
-        </div>
+          <div style="
+            display:grid;
+            grid-template-columns:140px 1fr 120px 120px 160px;
+            gap:8px;
+            padding:10px 12px;
+            font-size:12px;
+            font-weight:700;
+            color:#174b73;
+            border-bottom:1px solid #e4edf7;
+            background:#f7fbff;
+            position:sticky;
+            top:0;
+          ">
+            <div>Date</div>
+            <div>Description</div>
+            <div>Amount</div>
+            <div>Type</div>
+            <div>Category</div>
+          </div>
 
            ${draft.transactions
             .filter((tx) => {
@@ -1160,15 +1161,15 @@
             })
               .map((tx, index) => `
               
-          <div style="
-            display:grid;
-            grid-template-columns:140px 1fr 120px 160px;
-            gap:8px;
-            padding:10px 12px;
-            font-size:12px;
-            border-bottom:1px solid #eef3f8;
-            align-items:start;
-          ">
+            <div style="
+              display:grid;
+              grid-template-columns:140px 1fr 120px 120px 160px;
+              gap:8px;
+              padding:10px 12px;
+              font-size:12px;
+              border-bottom:1px solid #eef3f8;
+              align-items:start;
+            ">
             <div>
               <input
                 id="statement-date-${documentId}-${index}"
@@ -1193,7 +1194,15 @@
                 style="width:100%; padding:6px; border-radius:6px; border:1px solid #d9dee5; font-size:12px;"
               />
             </div>
-
+             <div>
+              <select
+                id="statement-type-${documentId}-${index}"
+                style="width:100%; padding:6px; border-radius:6px; border:1px solid #d9dee5; font-size:12px;"
+              >
+                <option value="expense" ${(tx.entry_type || "expense") === "expense" ? "selected" : ""}>Expense</option>
+                <option value="income" ${(tx.entry_type || "expense") === "income" ? "selected" : ""}>Income</option>
+              </select>
+            </div> 
             <div>
               <select
                 id="statement-category-${documentId}-${index}"
@@ -1236,8 +1245,9 @@
     const draft = analysisDrafts[documentId];
 
        if (draft && Array.isArray(draft.transactions) && draft.transactions.length > 0) {
-           const updatedTransactions = draft.transactions.map((tx, index) => {
+       const updatedTransactions = draft.transactions.map((tx, index) => {
         const categorySelect = document.getElementById("statement-category-" + documentId + "-" + index);
+        const typeSelect = document.getElementById("statement-type-" + documentId + "-" + index);
         const dateInput = document.getElementById("statement-date-" + documentId + "-" + index);
         const descriptionInput = document.getElementById("statement-description-" + documentId + "-" + index);
         const amountInput = document.getElementById("statement-amount-" + documentId + "-" + index);
@@ -1248,6 +1258,7 @@
 
         return {
           ...tx,
+          entry_type: typeSelect ? typeSelect.value : (tx.entry_type || "expense"),
           entry_date: dateInput ? dateInput.value : (tx.entry_date || ""),
           vendor_or_payor: updatedDescription,
           description: updatedDescription
