@@ -1126,12 +1126,19 @@ if (isDisallowedBoundaryLine(line)) {
   let rowCount = 0;
   let columnCount = 0;
 
+  const forceColumn =
+  section.id === 'atm_debit_withdrawals' ||
+  section.id === 'electronic_withdrawals';
+
+if (forceColumn) {
+  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
+} else {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
 
   if (rowCount === 0) {
     columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
   }
-
+}
   console.log('SECTION DEBUG:', {
     id: section.id,
     fallbackType: section.fallbackType,
