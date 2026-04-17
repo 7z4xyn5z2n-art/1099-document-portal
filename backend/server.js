@@ -897,8 +897,10 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     }
 
     if (isDisallowedBoundaryLine(line)) {
-      continue;
+      if (!isAmountOnlyLine(line) && !isDateOnlyLine(line)) {
+        continue;
     }
+}
 
     currentSection.lines.push(line);
   }
