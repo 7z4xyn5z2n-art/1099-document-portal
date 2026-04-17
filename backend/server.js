@@ -980,11 +980,13 @@ for (let i = 0; i < dateMatchesInText.length; i++) {
 
     const amountIndex = amountMatchesInText[j].index;
 
-    if (amountIndex > dateMatchesInText[i].index && amountIndex < nextDateIndex) {
-      chosenAmount = amountMatchesInText[j].value;
-      chosenAmountIndex = j;
-      break;
-    }
+   const distance = amountIndex - dateMatchesInText[i].index;
+
+  if (distance > 0 && distance < 200) {
+    chosenAmount = amountMatchesInText[j].value;
+    chosenAmountIndex = j;
+    break;
+  }
   }
 
   if (!chosenAmount) continue;
