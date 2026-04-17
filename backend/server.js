@@ -572,11 +572,7 @@ function calculateTransactionConfidence(transaction) {
 }
 
 function parseStatementTransactionsFromText(fullText, fallbackYear) {
-  const rawLines = String(fullText || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
-
+  const rawText = String(fullText || '');
   const transactions = [];
   const seen = new Set();
 
@@ -606,23 +602,29 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     'page '
   ];
 
-  function shouldSkipLine(line) {
-    const text = String(line || '').toLowerCase();
+  const amountRegex = /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/g;
+  const dateRegex = /\b\d{2}\/\d{2}\b/g;
+
+  function shouldSkipText(value) {
+    const text = String(value || '').toLowerCase();
     if (!text) return true;
     return skipPhrases.some(phrase => text.includes(phrase));
   }
 
-  function cleanChaseLine(line) {
-    return String(line || '')
-      .replace(/\s+total atm withdrawals.*$/i, '')
-      .replace(/\s+total card purchases.*$/i, '')
-      .replace(/\s+total card deposits.*$/i, '')
-      .replace(/\s+atm & debit card totals.*$/i, '')
-      .replace(/\s+checking summary.*$/i, '')
-      .replace(/\s+daily ending balance.*$/i, '')
-      .replace(/\s+electronic withdrawals.*$/i, '')
-      .replace(/\s+other withdrawals.*$/i, '')
-      .replace(/\s+deposits and additions.*$/i, '')
+  function cleanStatementChunk(value) {
+    return String(value || '')
+      .replace(/\bDATE\b/gi, ' ')
+      .replace(/\bDESCRIPTION\b/gi, ' ')
+      .replace(/\bAMOUNT\b/gi, ' ')
+      .replace(/\bTotal Deposits and Additions\b[\s\S]*$/i, ' ')
+      .replace(/\bTotal ATM\s*&\s*Debit Card Withdrawals\b[\s\S]*$/i, ' ')
+      .replace(/\bTotal Electronic Withdrawals\b[\s\S]*$/i, ' ')
+      .replace(/\bTotal Other Withdrawals\b[\s\S]*$/i, ' ')
+      .replace(/\bATM\s*&\s*DEBIT CARD SUMMARY\b[\s\S]*$/i, ' ')
+      .replace(/\bDAILY ENDING BALANCE\b[\s\S]*$/i, ' ')
+      .replace(/\bCHECKING SUMMARY\b[\s\S]*$/i, ' ')
+      .replace(/\*start\*[^\n]*|\*end\*[^\n]*/gi, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
@@ -671,20 +673,71 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     ].join('|');
   }
 
-  function pushTransaction(rawDate, rawDescription, rawAmount) {
+  function findLastAmountMatch(chunk) {
+    const matches = [...String(chunk || '').matchAll(amountRegex)];
+    return matches.length ? matches[matches.length - 1] : null;
+  }
+
+  function extractStatementSections(text) {
+    const definitions = [
+      {
+        start: '*start*deposits and additions',
+        end: '*end*deposits and additions',
+        fallbackType: 'income'
+      },
+      {
+        start: '*start*atm debit withdrawal',
+        end: '*end*atm debit withdrawal',
+        fallbackType: 'expense'
+      },
+      {
+        start: '*start*electronic withdrawal',
+        end: '*end*electronic withdrawal',
+        fallbackType: 'expense'
+      },
+      {
+        start: '*start*other withdrawals',
+        end: '*end*other withdrawals',
+        fallbackType: 'expense'
+      }
+    ];
+
+    const sections = definitions
+      .map(definition => {
+        const startIndex = text.toLowerCase().indexOf(definition.start);
+        const endIndex = text.toLowerCase().indexOf(definition.end);
+
+        if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
+          return null;
+        }
+
+        return {
+          fallbackType: definition.fallbackType,
+          text: text.slice(startIndex, endIndex)
+        };
+      })
+      .filter(Boolean);
+
+    if (sections.length > 0) return sections;
+
+    return [{ fallbackType: null, text }];
+  }
+
+  function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType) {
     const entryDate = normalizeStatementDate(rawDate, fallbackYear);
     const parsedAmount = parseStatementAmount(rawAmount);
-    const cleanedDescription = cleanStatementDescription(rawDescription);
+    const cleanedDescription = cleanStatementDescription(rawDescription)
+      .replace(/\b(?:card purchase|atm withdrawal|atm check deposit|deposit|payment to|dr due to|orig co name:)\b\s*/i, match => match.trim() + ' ')
+      .trim();
     const weakDescription = isWeakOrNoisyDescription(cleanedDescription);
     const description = weakDescription ? 'Unknown Transaction' : cleanedDescription;
 
     if (!entryDate || !parsedAmount) return;
     if (!parsedAmount.amount || Number(parsedAmount.amount) <= 0) return;
-    if (shouldSkipLine(cleanedDescription) || shouldSkipLine(description)) return;
-    if (weakDescription && description !== 'Unknown Transaction') return;
+    if (shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
 
     const categoryGuess = guessCategoryFromText(description);
-    const detectedType = detectStatementEntryType(description, parsedAmount.direction);
+    const detectedType = detectStatementEntryType(description, fallbackType || parsedAmount.direction);
     const transaction = {
       entry_date: entryDate,
       amount: parsedAmount.amount,
@@ -706,51 +759,57 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     transactions.push(transaction);
   }
 
-  for (let i = 0; i < rawLines.length; i++) {
-    let line = cleanChaseLine(rawLines[i]);
-    if (shouldSkipLine(line)) continue;
+  function extractTransactionsFromSection(sectionText, fallbackType) {
+    const compactText = cleanStatementChunk(sectionText);
+    if (!compactText) return;
 
-    if (!/^\d{2}\/\d{2}\b/.test(line)) continue;
+    const dateMatches = [...compactText.matchAll(dateRegex)].map(match => ({
+      value: match[0],
+      index: match.index
+    }));
 
-    const oneLineMatch = line.match(
-      /^(\d{2}\/\d{2})(?:\s+(\d{2}\/\d{2}))?\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))$/
-    );
+    let cursor = 0;
 
-    if (oneLineMatch) {
-      const rawDate = oneLineMatch[1];
-      const rawDescription = cleanChaseLine(oneLineMatch[3]);
-      const rawAmount = oneLineMatch[4];
-      pushTransaction(rawDate, rawDescription, rawAmount);
-      continue;
-    }
+    while (cursor < dateMatches.length) {
+      const startMatch = dateMatches[cursor];
+      let nextBoundaryIndex = compactText.length;
+      let nextCursor = dateMatches.length;
 
-    const startsWithDate = line.match(/^(\d{2}\/\d{2})\s+(.+)$/);
-    if (!startsWithDate) continue;
+      for (let i = cursor + 1; i < dateMatches.length; i++) {
+        const between = compactText.slice(startMatch.index, dateMatches[i].index);
+        if (findLastAmountMatch(between)) {
+          nextBoundaryIndex = dateMatches[i].index;
+          nextCursor = i;
+          break;
+        }
+      }
 
-    const rawDate = startsWithDate[1];
-    let descriptionParts = [cleanChaseLine(startsWithDate[2])];
-    let rawAmount = null;
+      const chunk = compactText.slice(startMatch.index, nextBoundaryIndex).trim();
+      const amountMatch = findLastAmountMatch(chunk);
 
-    for (let j = i + 1; j < rawLines.length; j++) {
-      let nextLine = cleanChaseLine(rawLines[j]);
+      if (amountMatch) {
+        const rawDate = startMatch.value;
+        const rawAmount = amountMatch[0];
+        const rawDescription = chunk
+          .slice(rawDate.length, amountMatch.index)
+          .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-      if (shouldSkipLine(nextLine)) break;
-      if (/^\d{2}\/\d{2}\b/.test(nextLine)) break;
+        pushTransaction(rawDate, rawDescription, rawAmount, fallbackType);
+      }
 
-      if (/^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})$/.test(nextLine)) {
-        rawAmount = nextLine;
-        i = j;
+      if (nextCursor >= dateMatches.length) {
         break;
       }
 
-      descriptionParts.push(nextLine);
-      i = j;
-    }
-
-    if (rawAmount) {
-      pushTransaction(rawDate, descriptionParts.join(' '), rawAmount);
+      cursor = nextCursor;
     }
   }
+
+  extractStatementSections(rawText).forEach(section => {
+    extractTransactionsFromSection(section.text, section.fallbackType);
+  });
 
   const finalSeen = new Set();
 
