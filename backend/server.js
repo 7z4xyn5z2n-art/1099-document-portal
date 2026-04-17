@@ -775,37 +775,30 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   if (!matchText) return null;
 
   if (
-    matchText.includes('deposit') &&
-    matchText.includes('addition')
+    /\bdeposits?\b/.test(matchText) &&
+    /\badditions?\b/.test(matchText)
   ) {
     return allowedSectionDefinitions.find(definition => definition.id === 'deposits_additions') || null;
   }
 
   if (
-    matchText.includes('atm') &&
-    (matchText.includes('debit') || matchText.includes('card')) &&
-    matchText.includes('withdraw')
+    /\batm\b/.test(matchText) &&
+    (/\bdebit\b/.test(matchText) || /\bcard\b/.test(matchText)) &&
+    /\bwithdrawals?\b/.test(matchText)
   ) {
     return allowedSectionDefinitions.find(definition => definition.id === 'atm_debit_withdrawals') || null;
   }
 
   if (
-    matchText.includes('electronic') &&
-    (
-      matchText.includes('withdraw') ||
-      matchText.includes('payment') ||
-      matchText.includes('debit')
-    )
+    /\belectronic\b/.test(matchText) &&
+    (/\bwithdrawals?\b/.test(matchText) || /\bpayments?\b/.test(matchText) || /\bdebits?\b/.test(matchText))
   ) {
     return allowedSectionDefinitions.find(definition => definition.id === 'electronic_withdrawals') || null;
   }
 
   if (
-    matchText.includes('other') &&
-    (
-      matchText.includes('withdraw') ||
-      matchText.includes('debit')
-    )
+    /\bother\b/.test(matchText) &&
+    (/\bwithdrawals?\b/.test(matchText) || /\bdebits?\b/.test(matchText))
   ) {
     return allowedSectionDefinitions.find(definition => definition.id === 'other_withdrawals') || null;
   }
@@ -832,53 +825,87 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const lines = splitStatementLines(text);
   const sections = [];
 
-  for (let i = 0; i < lines.length; i++) {
-    const sectionDefinition = matchAllowedSection(lines[i]);
-    console.log('HEADER CHECK:', { line: lines[i], matchedSection: sectionDefinition?.id || null });
-    if (!sectionDefinition) continue;
+  let currentSection = null;
 
-    const sectionLines = []; 
-    
-    for (let j = i + 1; j < lines.length; j++) {
-      const line = lines[j];
+  function finishCurrentSection() {
+    if (!currentSection) return;
 
-      if (matchAllowedSection(line)) break;
-      if (isTotalRowLine(line)) break;
-
-      if (
-  /daily\s*ending\s*balance/i.test(line) ||
-  /checking\s*summary/i.test(line) ||
-  /customer\s*service\s*information/i.test(line) ||
-  /this\s+page\s+intentionally\s+left\s+blank/i.test(line) ||
-  /^page\s+\d+(?:\s+of\s+\d+)?$/i.test(line)
-) {
-  break;
-}
-
-if (isDisallowedBoundaryLine(line)) {
-  continue;
-}
-
-      sectionLines.push(line);
-    }
-
-    sections.push({
-      id: sectionDefinition.id,
-      fallbackType: sectionDefinition.fallbackType,
-      lines: sectionLines,
-      text: sectionLines.join('\n')
+    const cleanedLines = currentSection.lines.filter(line => {
+      const normalizedLine = normalizeStatementInline(line);
+      if (!normalizedLine) return false;
+      if (isHeadingLine(normalizedLine)) return false;
+      if (isTotalRowLine(normalizedLine)) return false;
+      if (/^total\s+/i.test(normalizedLine)) return false;
+      return true;
     });
 
-   console.log('SECTION CAPTURED:', {
-  id: sectionDefinition.id,
-  lineCount: sectionLines.length,
-  first3Lines: sectionLines.slice(0, 3)
-}); 
+    if (
+      cleanedLines.some(line =>
+        /\b\d{2}\/\d{2}\b/.test(line) ||
+        /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/.test(line)
+      )
+    ) {
+      sections.push({
+        id: currentSection.id,
+        fallbackType: currentSection.fallbackType,
+        lines: cleanedLines,
+        text: cleanedLines.join('\n')
+      });
+    }
+
+    currentSection = null;
   }
 
-  return sections.filter(section =>
-    section.lines.some(line => /\b\d{2}\/\d{2}\b/.test(line) || amountRegex.test(line))
-  );
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+      const nextLine = lines[i + 1] || '';
+      const combinedHeaderLine = `${line} ${nextLine}`.trim();
+      const sectionDefinition =
+        matchAllowedSection(line) ||
+        matchAllowedSection(combinedHeaderLine);
+    if (sectionDefinition) {
+      finishCurrentSection();
+      currentSection = {
+        id: sectionDefinition.id,
+        fallbackType: sectionDefinition.fallbackType,
+        lines: []
+      };
+      continue;
+    }
+
+       if (!currentSection) continue;
+
+    if (
+      isTotalRowLine(line) ||
+      /^total\s+/i.test(line) ||
+      /total\s+deposits?\s*(?:and|&)?\s*additions?/i.test(line) ||
+      /total\s+atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals?/i.test(line) ||
+      /total\s+electronic\s*withdrawals?/i.test(line) ||
+      /total\s+other\s*withdrawals?/i.test(line)
+    ) {
+      finishCurrentSection();
+      continue;
+    }
+    if (
+      /checking\s*summary/i.test(line) ||
+      /daily\s*ending\s*balance/i.test(line) ||
+      /customer\s*service\s*information/i.test(line) ||
+      /this\s+page\s+intentionally\s+left\s+blank/i.test(line)
+    ) {
+      finishCurrentSection();
+      continue;
+    }
+
+    if (isDisallowedBoundaryLine(line)) {
+      continue;
+    }
+
+    currentSection.lines.push(line);
+  }
+
+  finishCurrentSection();
+
+  return sections;
 }
 
   function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk) {
