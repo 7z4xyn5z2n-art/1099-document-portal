@@ -577,77 +577,111 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const seen = new Set();
 
   const skipPhrases = [
-    'date description amount',
     'checking summary',
-    'deposits and additions',
-    'atm & debit card withdrawals',
-    'atm and debit card withdrawals',
-    'atm debit withdrawals',
-    'card purchases',
     'atm & debit card summary',
-    'electronic withdrawals',
-    'other withdrawals',
-    'other transaction activity',
     'daily ending balance',
     'beginning balance',
     'ending balance',
     'customer service information',
     'chase business complete checking',
-    'total deposits and additions',
-    'total deposits',
-    'total atm & debit card withdrawals',
-    'total electronic withdrawals',
-    'total other withdrawals',
-    'total other transaction activity',
-    'total atm withdrawals',
-    'total card purchases',
-    'total card deposits',
-    'atm & debit card totals',
-    '*start*',
-    '*end*',
-    'page '
+    'page ',
+    'member fdic',
+    'this page intentionally left blank'
   ];
 
   const amountRegex = /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/g;
+  const amountReplaceRegex = new RegExp(amountRegex.source, 'g');
   const dateRegex = /\b\d{2}\/\d{2}\b/g;
 
-  function normalizeStatementText(value) {
+  const allowedSectionDefinitions = [
+    {
+      id: 'deposits_additions',
+      fallbackType: 'income',
+      patterns: [/^deposits?\s*(?:and|&)\s*additions?$/i]
+    },
+    {
+      id: 'atm_debit_withdrawals',
+      fallbackType: 'expense',
+      patterns: [/^atm\s*(?:&|and)\s*debit(?:\s*card)?\s*withdrawals$/i, /^atm\s*debit\s*withdrawals$/i]
+    },
+    {
+      id: 'electronic_withdrawals',
+      fallbackType: 'expense',
+      patterns: [/^electronic\s*withdrawals$/i]
+    },
+    {
+      id: 'other_withdrawals',
+      fallbackType: 'expense',
+      patterns: [/^other\s*withdrawals$/i]
+    }
+  ];
+
+  const disallowedSectionPatterns = [
+    /^checking\s*summary$/i,
+    /^atm\s*(?:&|and)\s*debit(?:\s*card)?\s*summary$/i,
+    /^daily\s*ending\s*balance$/i,
+    /^customer\s*service\s*information$/i,
+    /^in\s+case\s+of\s+errors/i,
+    /^how\s+to\s+avoid\s+the\s+monthly\s+service\s+fee/i,
+    /^web\s*site:/i,
+    /^service\s*center:/i,
+    /^para\s+espanol:/i,
+    /^international\s+calls:/i,
+    /^we\s+accept\s+operator\s+relay\s+calls/i,
+    /^this\s+page\s+intentionally\s+left\s+blank$/i,
+    /^page\s+\d+(?:\s+of\s+\d+)?$/i,
+    /^jpmorgan\s+chase\s+bank/i,
+    /^member\s+fdic$/i,
+    /^account\s+number:/i,
+    /^[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+through\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}$/i,
+    /^beginning\s+balance$/i,
+    /^ending\s+balance$/i
+  ];
+
+  function normalizeStatementInline(value) {
     return String(value || '')
       .replace(/\r/g, '\n')
-      .replace(/\bDATE\b/gi, ' ')
-      .replace(/\bDESCRIPTION\b/gi, ' ')
-      .replace(/\bAMOUNT\b/gi, ' ')
       .replace(/\*start\*/gi, ' ')
       .replace(/\*end\*/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
 
+  function splitStatementLines(value) {
+    return String(value || '')
+      .replace(/\r/g, '\n')
+      .split('\n')
+      .map(line => normalizeStatementInline(line))
+      .filter(Boolean);
+  }
+
   function containsSummaryKeyword(value) {
-    const text = normalizeStatementText(value).toLowerCase();
+    const text = normalizeStatementInline(value).toLowerCase();
     if (!text) return true;
 
-  return [
-  'deposits and additions',
-  'total deposits',
-  'beginning balance',
-  'ending balance',
-  'daily ending balance',
-  'checking summary',
-  'customer service information'
-  ].some(keyword => text.includes(keyword));
+    return [
+      'checking summary',
+      'atm & debit card summary',
+      'daily ending balance',
+      'beginning balance',
+      'ending balance',
+      'customer service information',
+      'summary',
+      'total'
+    ].some(keyword => text.includes(keyword));
   }
 
   function shouldSkipText(value) {
-    const text = normalizeStatementText(value).toLowerCase();
+    const text = normalizeStatementInline(value).toLowerCase();
     if (!text) return true;
     if (containsSummaryKeyword(text)) return true;
     return skipPhrases.some(phrase => text.includes(phrase));
   }
 
   function cleanStatementChunk(value) {
-    return normalizeStatementText(value)
-      .replace(/\b(?:checking summary|customer service information|chase business complete checking)\b/gi, ' ')
+    return normalizeStatementInline(value)
+      .replace(/\b(?:DATE|DESCRIPTION|AMOUNT|INSTANCES)\b/gi, ' ')
+      .replace(/\b(?:checking summary|atm & debit card summary|daily ending balance|customer service information|chase business complete checking)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -697,109 +731,72 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     ].join('|');
   }
 
-  function buildGlobalRegex(regex) {
-    const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
-    return new RegExp(regex.source, flags);
-  }
-
-  function countDateAnchors(text) {
-    return [...cleanStatementChunk(text).matchAll(dateRegex)].length;
-  }
-
   function findLastAmountMatch(chunk) {
     const matches = [...String(chunk || '').matchAll(amountRegex)];
     return matches.length ? matches[matches.length - 1] : null;
   }
 
-  function hasDisallowedSectionPrefix(text, index) {
-    const prefix = text.slice(Math.max(0, index - 24), index).toLowerCase();
-    return /(total\s+|beginning\s+|ending\s+|daily\s+ending\s+)/.test(prefix);
+  function isHeadingLine(line) {
+    return /^(?:date|amount|description|instances|date description amount)$/i.test(String(line || '').trim());
+  }
+
+  function isDateOnlyLine(line) {
+    return /^\d{2}\/\d{2}$/.test(String(line || '').trim());
+  }
+
+  function isAmountOnlyLine(line) {
+    return /^-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}$/.test(String(line || '').trim());
+  }
+
+  function isTotalRowLine(line) {
+    return /^total\b/i.test(String(line || '').trim());
+  }
+
+  function matchAllowedSection(line) {
+    const normalizedLine = normalizeStatementInline(line);
+    return allowedSectionDefinitions.find(definition => definition.patterns.some(pattern => pattern.test(normalizedLine))) || null;
+  }
+
+  function isDisallowedBoundaryLine(line) {
+    const normalizedLine = normalizeStatementInline(line);
+    if (!normalizedLine) return true;
+    return disallowedSectionPatterns.some(pattern => pattern.test(normalizedLine));
+  }
+
+  function isIgnorableSectionLine(line) {
+    const normalizedLine = normalizeStatementInline(line);
+    return !normalizedLine || isHeadingLine(normalizedLine) || isDisallowedBoundaryLine(normalizedLine);
   }
 
   function extractStatementSections(text) {
-    const sectionDefinitions = [
-      {
-        id: 'deposits_additions',
-        fallbackType: 'income',
-        patterns: [
-          /\*start\*[\s\S]{0,60}?deposits?\s*(?:and|&)\s*additions?/i,
-          /deposits?\s*(?:and|&)\s*additions?/i
-        ]
-      },
-      {
-        id: 'atm_debit_withdrawals',
-        fallbackType: 'expense',
-        patterns: [
-          /\*start\*[\s\S]{0,60}?atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals\b/i,
-          /atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals\b/i,
-          /atm\s*debit\s*withdrawals\b/i
-        ]
-      },
-      {
-        id: 'card_purchases',
-        fallbackType: 'expense',
-        patterns: [
-          /\*start\*[\s\S]{0,60}?card\s*purchases\b/i,
-          /card\s*purchases\b/i
-        ]
-      },
-      {
-        id: 'electronic_withdrawals',
-        fallbackType: 'expense',
-        patterns: [
-          /\*start\*[\s\S]{0,60}?electronic\s*withdrawals\b/i,
-          /electronic\s*withdrawals\b/i
-        ]
-      },
-      {
-        id: 'other_transactions',
-        fallbackType: 'expense',
-        patterns: [
-          /\*start\*[\s\S]{0,60}?other\s*(?:withdrawals\b|transaction\s*activity|transactions\b|activity\b)/i,
-          /other\s*(?:withdrawals\b|transaction\s*activity|transactions\b|activity\b)/i,
-          /other\s*transaction\s*activity/i
-        ]
+    const lines = splitStatementLines(text);
+    const sections = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const sectionDefinition = matchAllowedSection(lines[i]);
+      if (!sectionDefinition) continue;
+
+      const sectionLines = [];
+
+      for (let j = i + 1; j < lines.length; j++) {
+        const line = lines[j];
+
+        if (isTotalRowLine(line)) break;
+        if (matchAllowedSection(line)) break;
+        if (isDisallowedBoundaryLine(line)) break;
+
+        sectionLines.push(line);
       }
-    ];
 
-    const starts = [];
-
-    sectionDefinitions.forEach(definition => {
-      definition.patterns.forEach(pattern => {
-        const regex = buildGlobalRegex(pattern);
-        let match;
-
-        while ((match = regex.exec(text)) !== null) {
-          if (hasDisallowedSectionPrefix(text, match.index)) {
-            if (regex.lastIndex === match.index) regex.lastIndex += 1;
-            continue;
-          }
-
-          starts.push({
-            id: definition.id,
-            fallbackType: definition.fallbackType,
-            index: match.index,
-            length: match[0].length
-          });
-
-          if (regex.lastIndex === match.index) regex.lastIndex += 1;
-        }
+      sections.push({
+        id: sectionDefinition.id,
+        fallbackType: sectionDefinition.fallbackType,
+        lines: sectionLines,
+        text: sectionLines.join('\n')
       });
-    });
+    }
 
-    const orderedStarts = starts
-      .sort((a, b) => a.index - b.index || b.length - a.length)
-      .filter((candidate, idx, array) => {
-        const previous = array[idx - 1];
-        if (!previous) return true;
-        if (candidate.id !== previous.id) return true;
-        return Math.abs(candidate.index - previous.index) > 30;
-      });
-
-    return orderedStarts.map((start, idx) => ({
-      fallbackType: start.fallbackType,
-      text: text.slice(start.index, idx + 1 < orderedStarts.length ? orderedStarts[idx + 1].index : text.length)
-    }));
+    return sections.filter(section => section.lines.some(line => dateRegex.test(line) || amountRegex.test(line)));
   }
 
   function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk) {
@@ -838,62 +835,144 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     transactions.push(transaction);
   }
 
-  function extractTransactionsFromSection(sectionText, fallbackType) {
-    const compactText = cleanStatementChunk(sectionText);
-    if (!compactText) return;
+  function extractRowTransactionsFromSection(section, fallbackType) {
+    const beforeCount = transactions.length;
+    const rows = [];
+    let currentRow = '';
 
-    const dateMatches = [...compactText.matchAll(dateRegex)].map(match => ({
-      value: match[0],
-      index: match.index
-    }));
+    section.lines.forEach(line => {
+      const normalizedLine = normalizeStatementInline(line);
+      if (isIgnorableSectionLine(normalizedLine) || isTotalRowLine(normalizedLine)) return;
 
-   for (let i = 0; i < dateMatches.length; i++) {
-  const startMatch = dateMatches[i];
+      if (/^\d{2}\/\d{2}\b/.test(normalizedLine)) {
+        if (currentRow) rows.push(currentRow);
+        currentRow = normalizedLine;
+        return;
+      }
 
-  let nextBoundaryIndex = compactText.length;
+      if (currentRow) {
+        currentRow = `${currentRow} ${normalizedLine}`.trim();
+      }
+    });
 
-  for (let j = i + 1; j < dateMatches.length; j++) {
-    const candidateChunk = compactText.slice(startMatch.index, dateMatches[j].index).trim();
+    if (currentRow) rows.push(currentRow);
 
-    if (findLastAmountMatch(candidateChunk)) {
-      nextBoundaryIndex = dateMatches[j].index;
-      break;
-    }
-  }
+    rows.forEach(row => {
+      const rowText = cleanStatementChunk(row);
+      const rawDateMatch = rowText.match(/^\d{2}\/\d{2}\b/);
+      const amountMatch = findLastAmountMatch(rowText);
+      if (!rawDateMatch || !amountMatch) return;
 
-  const chunk = compactText.slice(startMatch.index, nextBoundaryIndex).trim();
-
-  if (!chunk || containsSummaryKeyword(chunk)) continue;
-
-  const amountMatch = findLastAmountMatch(chunk);
-  if (!amountMatch) continue;
-
-      const rawDate = startMatch.value;
+      const rawDate = rawDateMatch[0];
       const rawAmount = amountMatch[0];
-      const rawDescription = chunk
+      const rawDescription = rowText
         .slice(rawDate.length, amountMatch.index)
         .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
         .replace(/\s+/g, ' ')
         .trim();
 
-      pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, chunk);
+      pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rowText);
+    });
+
+    return transactions.length - beforeCount;
+  }
+
+  function collectDateValues(lines) {
+    return lines
+      .map(line => normalizeStatementInline(line))
+      .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line))
+      .flatMap(line => {
+        if (isAmountOnlyLine(line)) return [];
+        if (isDateOnlyLine(line)) return [line];
+        if (/^\d{2}\/\d{2}\b/.test(line) && !findLastAmountMatch(line)) return [line.match(/^\d{2}\/\d{2}\b/)[0]];
+        return [];
+      });
+  }
+
+  function collectAmountValues(lines) {
+  return lines
+    .map(line => normalizeStatementInline(line))
+    .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line))
+    .flatMap(line => {
+      if (isDateOnlyLine(line)) return [];
+      if (isAmountOnlyLine(line)) return [line];
+      if (line.toLowerCase().includes('daily ending balance')) return [];
+
+      if (!/^\d{2}\/\d{2}\b/.test(line)) {
+        if (/^\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}$/.test(line) && line.length < 15) {
+          return [];
+        }
+
+        const matches = [...line.matchAll(amountRegex)].map(match => match[0]);
+        return matches;
+      }
+
+      return [];
+    });
+}
+
+  function collectDescriptionCandidates(lines) {
+    return lines
+      .map(line => cleanStatementChunk(line)
+        .replace(dateRegex, ' ')
+        .replace(amountReplaceRegex, ' ')
+        .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim())
+      .filter(line => line && !containsSummaryKeyword(line) && !isHeadingLine(line) && !isDateOnlyLine(line) && !isAmountOnlyLine(line));
+  }
+
+  function analyzeColumnStructure(section, rowCount) {
+    const lines = section.lines.map(line => normalizeStatementInline(line)).filter(Boolean);
+    const dates = collectDateValues(lines);
+    const amounts = collectAmountValues(lines);
+    const descriptions = collectDescriptionCandidates(lines);
+    const alignedCount = Math.min(dates.length, amounts.length);
+    const countDifference = Math.abs(dates.length - amounts.length);
+    const dateOnlyCount = lines.filter(isDateOnlyLine).length;
+    const amountOnlyCount = lines.filter(isAmountOnlyLine).length;
+    const hasColumnSignals = dateOnlyCount >= 2 || amountOnlyCount >= 2 || (lines.some(isHeadingLine) && rowCount === 0);
+    const isColumnMode = hasColumnSignals && alignedCount > rowCount && alignedCount > 0;
+
+    return {
+      isColumnMode,
+      dates,
+      amounts,
+      descriptions,
+      alignedCount,
+      countDifference
+    };
+  }
+
+  function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
+    const analysis = analyzeColumnStructure(section, rowCount);
+    if (!analysis.isColumnMode) return 0;
+
+    const beforeCount = transactions.length;
+    let pairCount = Math.min(analysis.dates.length, analysis.amounts.length);
+    
+    if (pairCount <= 0) return 0;
+
+    for (let i = 0; i < pairCount; i++) {
+      const rawDate = analysis.dates[i];
+      const rawAmount = analysis.amounts[i];
+      const rawDescription =
+        (analysis.descriptions && analysis.descriptions[i]) ||
+        `Transaction ${i + 1}`;
+      const rawChunk = `${rawDate} ${rawDescription} ${rawAmount}`;
+      pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk);
     }
+
+    return transactions.length - beforeCount;
+  }
+
+  function processStatementSection(section) {
+    const rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+    reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
   }
 
   const sections = extractStatementSections(rawText);
-
-  if (sections.length > 0) {
-    sections.forEach(section => {
-      extractTransactionsFromSection(section.text, section.fallbackType);
-    });
-  }
-
-  const fullTextAnchorCount = countDateAnchors(rawText);
-  const shouldRunFallback = sections.length === 0 || transactions.length === 0 || (transactions.length <= 1 && fullTextAnchorCount > transactions.length);
-
-  if (shouldRunFallback) {
-    extractTransactionsFromSection(rawText, null);
-  }
+  sections.forEach(processStatementSection);
 
   const finalSeen = new Set();
 
@@ -934,8 +1013,7 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
 
   const entities = result?.document?.entities || [];
   const fullText = result?.document?.text || '';
-  console.log('FULL OCR TEXT PREVIEW:', fullText.slice(0, 4000));
-  
+
   let rawAmount =
     extractEntityText(entities, 'total_amount') ||
     extractEntityText(entities, 'net_amount') ||
