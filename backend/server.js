@@ -1043,106 +1043,85 @@ if (isDisallowedBoundaryLine(line)) {
   if (!analysis.isColumnMode) return 0;
 
   const beforeCount = transactions.length;
+
   const lines = section.lines
     .map(line => normalizeStatementInline(line))
     .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line));
 
-  let currentDate = '';
-  let currentDescriptionParts = [];
-  let currentAmounts = [];
-
-  function flushCurrentGroup() {
-    if (!currentDate || currentAmounts.length === 0) {
-      currentDate = '';
-      currentDescriptionParts = [];
-      currentAmounts = [];
-      return;
-    }
-
-    const rawDescription = cleanStatementChunk(currentDescriptionParts.join(' ').trim()) || 'Unknown Transaction';
-
-    const rawAmount = currentAmounts[currentAmounts.length - 1];
-
-    const rawChunk = `${currentDate} ${rawDescription} ${rawAmount}`;
-    pushTransaction(currentDate, rawDescription, rawAmount, fallbackType, rawChunk);
-    
-    currentDate = '';
-    currentDescriptionParts = [];
-    currentAmounts = [];
-  }
+  const rowCandidates = [];
+  const orphanAmounts = [];
 
   lines.forEach(line => {
     if (isHeadingLine(line)) return;
 
-    if (isDateOnlyLine(line)) {
-  flushCurrentGroup();
-  currentDate = line;
-  currentDescriptionParts = [];
-  currentAmounts = [];
-  return;
-}
-
+    // DATE + DESCRIPTION LINE
     if (/^\d{2}\/\d{2}\b/.test(line)) {
-  const matchedDate = line.match(/^\d{2}\/\d{2}\b/);
-  if (matchedDate) {
-    flushCurrentGroup();
-    currentDate = matchedDate[0];
-    currentDescriptionParts = [];
-    currentAmounts = [];
+      const match = line.match(/^\d{2}\/\d{2}\b/);
+      if (!match) return;
 
-    const remainder = cleanStatementChunk(line.slice(matchedDate[0].length));
-    if (remainder) {
-      const inlineAmounts = [...remainder.matchAll(amountRegex)].map(match => match[0]);
+      const rawDate = match[0];
+      const remainder = cleanStatementChunk(line.slice(rawDate.length));
+
+      const inlineAmounts = [...remainder.matchAll(amountRegex)].map(m => m[0]);
       const descOnly = cleanStatementChunk(remainder.replace(amountReplaceRegex, ' '));
 
-      if (descOnly) currentDescriptionParts.push(descOnly);
       if (inlineAmounts.length > 0) {
-        currentAmounts.push(inlineAmounts[inlineAmounts.length - 1]);
-      }
-    }
-    return;
-  }
-}
+        // FULL ROW (date + desc + amount)
+        const rawAmount = inlineAmounts[inlineAmounts.length - 1];
 
-    if (isAmountOnlyLine(line)) {
-      if (currentDate) currentAmounts.push(line);
+        pushTransaction(
+          rawDate,
+          descOnly || 'Unknown Transaction',
+          rawAmount,
+          fallbackType,
+          `${rawDate} ${descOnly} ${rawAmount}`
+        );
+      } else {
+        // STORE for later pairing
+        rowCandidates.push({
+          rawDate,
+          rawDescription: descOnly || 'Unknown Transaction'
+        });
+      }
+
       return;
     }
 
-    const inlineAmounts = [...line.matchAll(amountRegex)].map(match => match[0]);
+    // AMOUNT-ONLY LINE
+    if (isAmountOnlyLine(line)) {
+      orphanAmounts.push(line);
+      return;
+    }
 
-if (inlineAmounts.length > 0) {
-  const descOnly = cleanStatementChunk(line.replace(amountReplaceRegex, ' '));
+    // CONTINUATION DESCRIPTION
+    const cleaned = cleanStatementChunk(line);
+    if (!cleaned) return;
 
-  if (currentDate && currentAmounts.length > 0) {
-    const activeDate = currentDate;
-    flushCurrentGroup();
-    currentDate = activeDate;
-    currentDescriptionParts = [];
-    currentAmounts = [];
-  }
-
-  if (descOnly) {
-    currentDescriptionParts.push(descOnly);
-  }
-
-  if (currentDate) {
-    currentAmounts.push(inlineAmounts[inlineAmounts.length - 1]);
-  }
-
-  return;
-}
-
-    const cleanedLine = cleanStatementChunk(line);
-    if (cleanedLine) {
-      currentDescriptionParts.push(cleanedLine);
+    if (rowCandidates.length > 0 && !findLastAmountMatch(cleaned)) {
+      const last = rowCandidates.length - 1;
+      rowCandidates[last].rawDescription = cleanStatementChunk(
+        `${rowCandidates[last].rawDescription} ${cleaned}`
+      );
     }
   });
 
-  flushCurrentGroup();
+  // PAIR rows to amounts BY INDEX
+  rowCandidates.forEach((row, i) => {
+    const rawAmount = orphanAmounts[i];
+    if (!rawAmount) return;
+
+    pushTransaction(
+      row.rawDate,
+      row.rawDescription,
+      rawAmount,
+      fallbackType,
+      `${row.rawDate} ${row.rawDescription} ${rawAmount}`
+    );
+  });
 
   return transactions.length - beforeCount;
 }
+  
  function processStatementSection(section) {
   let rowCount = 0;
   let columnCount = 0;
