@@ -1045,9 +1045,17 @@ if (isDisallowedBoundaryLine(line)) {
   const beforeCount = transactions.length;
 
   const lines = section.lines
-    .map(line => normalizeStatementInline(line))
-    .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line));
-
+  .map(line => normalizeStatementInline(line))
+  .filter(line => {
+    if (!line) return false;
+    if (isIgnorableSectionLine(line)) return false;
+    if (isTotalRowLine(line)) return false;
+    if (/^total\s+/i.test(line)) return false;
+    if (/total\s+(deposits|withdrawals|additions)/i.test(line)) return false;
+    if (/^page\s+\d+/i.test(line)) return false;
+    return true;
+  });
+    
   const rowCandidates = [];
   const orphanAmounts = [];
   let hasSeenTransactionRow = false;
@@ -1126,25 +1134,19 @@ if (isDisallowedBoundaryLine(line)) {
   return transactions.length - beforeCount;
 }
   
- function processStatementSection(section) {
-  let rowCount = 0;
-  let columnCount = 0;
+ const hasColumnSignals =
+  section.lines.some(line => isDateOnlyLine(line)) ||
+  section.lines.some(line => isAmountOnlyLine(line));
 
+if (hasColumnSignals) {
+  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
+} else {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
 
-  const shouldTryColumnFallback =
-    rowCount === 0 ||
-    (
-      rowCount <= 1 &&
-      (
-        section.lines.some(line => isDateOnlyLine(line)) ||
-        section.lines.some(line => isAmountOnlyLine(line))
-      )
-    );
-
-  if (shouldTryColumnFallback) {
+  if (rowCount === 0) {
     columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
   }
+}
 
   console.log('SECTION DEBUG:', {
     id: section.id,
