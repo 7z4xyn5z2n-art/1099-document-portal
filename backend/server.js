@@ -1102,8 +1102,26 @@ for (let i = 0; i < dateMatchesInText.length; i++) {
   }
 
   function processStatementSection(section) {
-  const rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
-  const columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+  let rowCount = 0;
+  let columnCount = 0;
+
+  const columnAnalysis = analyzeColumnStructure(section, 0);
+  const shouldPreferColumns =
+    columnAnalysis.isColumnMode ||
+    section.lines.some(line => isDateOnlyLine(line)) ||
+    section.lines.some(line => isAmountOnlyLine(line));
+
+  if (shouldPreferColumns) {
+    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
+    if (columnCount === 0) {
+      rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+    }
+  } else {
+    rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+    if (rowCount === 0) {
+      columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+    }
+  }
 
   console.log('SECTION DEBUG:', {
     id: section.id,
@@ -1111,6 +1129,7 @@ for (let i = 0; i < dateMatchesInText.length; i++) {
     lineCount: section.lines.length,
     rowCount,
     columnCount,
+    preferredMode: shouldPreferColumns ? 'column' : 'row',
     firstFiveLines: section.lines.slice(0, 5)
   });
 }
