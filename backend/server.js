@@ -841,19 +841,31 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     let currentRow = '';
 
     section.lines.forEach(line => {
-      const normalizedLine = normalizeStatementInline(line);
-      if (isIgnorableSectionLine(normalizedLine) || isTotalRowLine(normalizedLine)) return;
+  const normalizedLine = normalizeStatementInline(line);
+  if (isIgnorableSectionLine(normalizedLine) || isTotalRowLine(normalizedLine)) return;
 
-      if (/^\d{2}\/\d{2}\b/.test(normalizedLine)) {
-        if (currentRow) rows.push(currentRow);
-        currentRow = normalizedLine;
-        return;
-      }
+  const startsWithDate = /^\d{2}\/\d{2}\b/.test(normalizedLine);
+  const hasAmount = !!findLastAmountMatch(normalizedLine);
 
-      if (currentRow) {
-        currentRow = `${currentRow} ${normalizedLine}`.trim();
-      }
-    });
+  if (startsWithDate && hasAmount) {
+    if (currentRow) {
+      rows.push(currentRow);
+      currentRow = '';
+    }
+    rows.push(normalizedLine);
+    return;
+  }
+
+  if (startsWithDate) {
+    if (currentRow) rows.push(currentRow);
+    currentRow = normalizedLine;
+    return;
+  }
+
+  if (currentRow) {
+    currentRow = `${currentRow} ${normalizedLine}`.trim();
+  }
+});
 
     if (currentRow) rows.push(currentRow);
 
