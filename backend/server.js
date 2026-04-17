@@ -1141,18 +1141,18 @@ if (isDisallowedBoundaryLine(line)) {
   let columnCount = 0;
 
   const hasColumnSignals =
-    section.lines.some(line => isDateOnlyLine(line)) ||
-    section.lines.some(line => isAmountOnlyLine(line));
+  section.lines.some(line => isDateOnlyLine(line)) ||
+  section.lines.some(line => isAmountOnlyLine(line));
 
-  if (hasColumnSignals) {
-    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
-  } else {
-    rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+const shouldAlwaysTryBoth =
+  section.id === 'deposits_additions' ||
+  section.id === 'electronic_withdrawals';
 
-    if (rowCount === 0) {
-      columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
-    }
-  }
+rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+
+if (shouldAlwaysTryBoth || hasColumnSignals || rowCount === 0) {
+  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+}
 
   console.log('SECTION DEBUG:', {
     id: section.id,
