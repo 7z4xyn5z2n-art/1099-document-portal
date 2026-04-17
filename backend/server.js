@@ -1039,68 +1039,96 @@ if (isDisallowedBoundaryLine(line)) {
   }
 
   function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
-    const analysis = analyzeColumnStructure(section, rowCount);
-    if (!analysis.isColumnMode) return 0;
+  const analysis = analyzeColumnStructure(section, rowCount);
+  if (!analysis.isColumnMode) return 0;
 
-    const beforeCount = transactions.length;
-     const pairCount = Math.min(analysis.dates.length, analysis.amounts.length);
-    
-    if (pairCount <= 0) return 0;
+  const beforeCount = transactions.length;
+  const lines = section.lines
+    .map(line => normalizeStatementInline(line))
+    .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line));
 
-    const sectionText = section.lines.join(' ');
-  
-    const dateMatchesInText = [...sectionText.matchAll(dateRegex)].map(match => ({
-      value: match[0],
-      index: match.index
-    }));
-    const amountMatchesInText = [...sectionText.matchAll(amountRegex)].map(match => ({
-      value: match[0],
-      index: match.index
-    }));
-    
-  const usedAmountIndexes = new Set();
+  let currentDate = '';
+  let currentDescriptionParts = [];
+  let currentAmounts = [];
 
-for (let i = 0; i < dateMatchesInText.length; i++) {
-  const rawDate = dateMatchesInText[i].value;
-  const nextDateIndex = i + 1 < dateMatchesInText.length
-    ? dateMatchesInText[i + 1].index
-    : sectionText.length;
+  function flushCurrentGroup() {
+    if (!currentDate || currentAmounts.length === 0) {
+      currentDate = '';
+      currentDescriptionParts = [];
+      currentAmounts = [];
+      return;
+    }
 
-  let chosenAmount = null;
-  let chosenAmountIndex = -1;
+    const rawDescription = cleanStatementChunk(currentDescriptionParts.join(' ').trim()) || 'Unknown Transaction';
 
-  for (let j = 0; j < amountMatchesInText.length; j++) {
-    if (usedAmountIndexes.has(j)) continue;
+    currentAmounts.forEach(rawAmount => {
+      const rawChunk = `${currentDate} ${rawDescription} ${rawAmount}`;
+      pushTransaction(currentDate, rawDescription, rawAmount, fallbackType, rawChunk);
+    });
 
-    const amountIndex = amountMatchesInText[j].index;
-
-   const distance = amountIndex - dateMatchesInText[i].index;
-
-  if (distance > 0 && distance < 200) {
-    chosenAmount = amountMatchesInText[j].value;
-    chosenAmountIndex = j;
-    break;
-  }
+    currentDate = '';
+    currentDescriptionParts = [];
+    currentAmounts = [];
   }
 
-  if (!chosenAmount) continue;
+  lines.forEach(line => {
+    if (isHeadingLine(line)) return;
 
-  usedAmountIndexes.add(chosenAmountIndex);
+    if (isDateOnlyLine(line)) {
+      flushCurrentGroup();
+      currentDate = line;
+      return;
+    }
 
-  const rawDescription =
-    sectionText
-      .slice(dateMatchesInText[i].index + rawDate.length, amountMatchesInText[chosenAmountIndex].index)
-      .replace(/\b(?:DATE|DESCRIPTION|AMOUNT|INSTANCES)\b/gi, ' ')
-      .replace(/\s+/g, ' ')
-      .trim() ||
-    `Transaction ${i + 1}`;
+    if (!currentDate && /^\d{2}\/\d{2}\b/.test(line)) {
+      const matchedDate = line.match(/^\d{2}\/\d{2}\b/);
+      if (matchedDate) {
+        flushCurrentGroup();
+        currentDate = matchedDate[0];
 
-  const rawChunk = `${rawDate} ${rawDescription} ${chosenAmount}`;
-  pushTransaction(rawDate, rawDescription, chosenAmount, fallbackType, rawChunk);
+        const remainder = cleanStatementChunk(line.slice(matchedDate[0].length));
+        if (remainder) {
+          const inlineAmounts = [...remainder.matchAll(amountRegex)].map(match => match[0]);
+
+          if (inlineAmounts.length > 0) {
+            const descOnly = cleanStatementChunk(
+              remainder.replace(amountReplaceRegex, ' ')
+            );
+
+            if (descOnly) currentDescriptionParts.push(descOnly);
+            currentAmounts.push(...inlineAmounts);
+          } else {
+            currentDescriptionParts.push(remainder);
+          }
+        }
+        return;
+      }
+    }
+
+    if (isAmountOnlyLine(line)) {
+      if (currentDate) currentAmounts.push(line);
+      return;
+    }
+
+    const inlineAmounts = [...line.matchAll(amountRegex)].map(match => match[0]);
+
+    if (inlineAmounts.length > 0) {
+      const descOnly = cleanStatementChunk(line.replace(amountReplaceRegex, ' '));
+      if (descOnly) currentDescriptionParts.push(descOnly);
+      if (currentDate) currentAmounts.push(...inlineAmounts);
+      return;
+    }
+
+    const cleanedLine = cleanStatementChunk(line);
+    if (cleanedLine) {
+      currentDescriptionParts.push(cleanedLine);
+    }
+  });
+
+  flushCurrentGroup();
+
+  return transactions.length - beforeCount;
 }
-    return transactions.length - beforeCount;
-  }
-
   function processStatementSection(section) {
   let rowCount = 0;
   let columnCount = 0;
