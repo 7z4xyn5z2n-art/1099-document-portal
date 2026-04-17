@@ -835,9 +835,19 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       if (matchAllowedSection(line)) break;
       if (isTotalRowLine(line)) break;
 
-      if (isDisallowedBoundaryLine(line)) {
-        continue;
-      }
+      if (
+  /daily\s*ending\s*balance/i.test(line) ||
+  /checking\s*summary/i.test(line) ||
+  /customer\s*service\s*information/i.test(line) ||
+  /this\s+page\s+intentionally\s+left\s+blank/i.test(line) ||
+  /^page\s+\d+(?:\s+of\s+\d+)?$/i.test(line)
+) {
+  break;
+}
+
+if (isDisallowedBoundaryLine(line)) {
+  continue;
+}
 
       sectionLines.push(line);
     }
