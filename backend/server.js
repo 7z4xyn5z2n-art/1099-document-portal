@@ -980,9 +980,12 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   });
 }
 
-  const sections = extractStatementSections(rawText);
-  sections.forEach(processStatementSection);
+ const sections = extractStatementSections(rawText);
 
+console.log('SECTIONS FOUND:', sections.map(s => s.id));
+
+sections.forEach(processStatementSection);
+  
   const finalSeen = new Set();
 
   return transactions
