@@ -1143,26 +1143,14 @@ if (inlineAmounts.length > 0) {
 
   return transactions.length - beforeCount;
 }
-  function processStatementSection(section) {
+ function processStatementSection(section) {
   let rowCount = 0;
   let columnCount = 0;
 
-  const columnAnalysis = analyzeColumnStructure(section, 0);
-  const shouldPreferColumns =
-    columnAnalysis.isColumnMode ||
-    section.lines.some(line => isDateOnlyLine(line)) ||
-    section.lines.some(line => isAmountOnlyLine(line));
+  rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
 
-  if (shouldPreferColumns) {
-    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
-    if (columnCount === 0) {
-      rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
-    }
-  } else {
-    rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
-    if (rowCount === 0) {
-      columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
-    }
+  if (rowCount === 0) {
+    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
   }
 
   console.log('SECTION DEBUG:', {
@@ -1171,7 +1159,7 @@ if (inlineAmounts.length > 0) {
     lineCount: section.lines.length,
     rowCount,
     columnCount,
-    preferredMode: shouldPreferColumns ? 'column' : 'row',
+    preferredMode: rowCount > 0 ? 'row' : 'column',
     firstFiveLines: section.lines.slice(0, 5)
   });
 }
