@@ -768,15 +768,43 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     return /^total\b/i.test(String(line || '').trim());
   }
 
-  function matchAllowedSection(line) {
+ function matchAllowedSection(line) {
   const normalizedLine = normalizeStatementInline(line);
   const matchText = normalizeMatchText(normalizedLine);
 
-  return allowedSectionDefinitions.find(definition =>
-    definition.patterns.some(pattern =>
+  const sectionAliases = {
+    deposits_additions: [
+      'deposits and additions',
+      'deposits additions',
+      'deposit additions'
+    ],
+    atm_debit_withdrawals: [
+      'atm debit card withdrawals',
+      'atm and debit card withdrawals',
+      'atm debit withdrawals',
+      'debit card withdrawals'
+    ],
+    electronic_withdrawals: [
+      'electronic withdrawals',
+      'electronic payments',
+      'electronic debits'
+    ],
+    other_withdrawals: [
+      'other withdrawals',
+      'other debits'
+    ]
+  };
+
+  return allowedSectionDefinitions.find(definition => {
+    const directRegexMatch = definition.patterns.some(pattern =>
       pattern.test(normalizedLine) || pattern.test(matchText)
-    )
-  ) || null;
+    );
+
+    if (directRegexMatch) return true;
+
+    const aliases = sectionAliases[definition.id] || [];
+    return aliases.some(alias => matchText.includes(alias));
+  }) || null;
 }
   
   function isDisallowedBoundaryLine(line) {
