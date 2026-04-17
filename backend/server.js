@@ -1061,11 +1061,11 @@ if (isDisallowedBoundaryLine(line)) {
 
     const rawDescription = cleanStatementChunk(currentDescriptionParts.join(' ').trim()) || 'Unknown Transaction';
 
-    currentAmounts.forEach(rawAmount => {
-      const rawChunk = `${currentDate} ${rawDescription} ${rawAmount}`;
-      pushTransaction(currentDate, rawDescription, rawAmount, fallbackType, rawChunk);
-    });
+    const rawAmount = currentAmounts[currentAmounts.length - 1];
 
+    const rawChunk = `${currentDate} ${rawDescription} ${rawAmount}`;
+    pushTransaction(currentDate, rawDescription, rawAmount, fallbackType, rawChunk);
+    
     currentDate = '';
     currentDescriptionParts = [];
     currentAmounts = [];
@@ -1075,35 +1075,34 @@ if (isDisallowedBoundaryLine(line)) {
     if (isHeadingLine(line)) return;
 
     if (isDateOnlyLine(line)) {
-      flushCurrentGroup();
-      currentDate = line;
-      return;
-    }
+  flushCurrentGroup();
+  currentDate = line;
+  currentDescriptionParts = [];
+  currentAmounts = [];
+  return;
+}
 
-    if (!currentDate && /^\d{2}\/\d{2}\b/.test(line)) {
-      const matchedDate = line.match(/^\d{2}\/\d{2}\b/);
-      if (matchedDate) {
-        flushCurrentGroup();
-        currentDate = matchedDate[0];
+    if (/^\d{2}\/\d{2}\b/.test(line)) {
+  const matchedDate = line.match(/^\d{2}\/\d{2}\b/);
+  if (matchedDate) {
+    flushCurrentGroup();
+    currentDate = matchedDate[0];
+    currentDescriptionParts = [];
+    currentAmounts = [];
 
-        const remainder = cleanStatementChunk(line.slice(matchedDate[0].length));
-        if (remainder) {
-          const inlineAmounts = [...remainder.matchAll(amountRegex)].map(match => match[0]);
+    const remainder = cleanStatementChunk(line.slice(matchedDate[0].length));
+    if (remainder) {
+      const inlineAmounts = [...remainder.matchAll(amountRegex)].map(match => match[0]);
+      const descOnly = cleanStatementChunk(remainder.replace(amountReplaceRegex, ' '));
 
-          if (inlineAmounts.length > 0) {
-            const descOnly = cleanStatementChunk(
-              remainder.replace(amountReplaceRegex, ' ')
-            );
-
-            if (descOnly) currentDescriptionParts.push(descOnly);
-            currentAmounts.push(...inlineAmounts);
-          } else {
-            currentDescriptionParts.push(remainder);
-          }
-        }
-        return;
+      if (descOnly) currentDescriptionParts.push(descOnly);
+      if (inlineAmounts.length > 0) {
+        currentAmounts.push(inlineAmounts[inlineAmounts.length - 1]);
       }
     }
+    return;
+  }
+}
 
     if (isAmountOnlyLine(line)) {
       if (currentDate) currentAmounts.push(line);
@@ -1112,12 +1111,27 @@ if (isDisallowedBoundaryLine(line)) {
 
     const inlineAmounts = [...line.matchAll(amountRegex)].map(match => match[0]);
 
-    if (inlineAmounts.length > 0) {
-      const descOnly = cleanStatementChunk(line.replace(amountReplaceRegex, ' '));
-      if (descOnly) currentDescriptionParts.push(descOnly);
-      if (currentDate) currentAmounts.push(...inlineAmounts);
-      return;
-    }
+if (inlineAmounts.length > 0) {
+  const descOnly = cleanStatementChunk(line.replace(amountReplaceRegex, ' '));
+
+  if (currentDate && currentAmounts.length > 0) {
+    const activeDate = currentDate;
+    flushCurrentGroup();
+    currentDate = activeDate;
+    currentDescriptionParts = [];
+    currentAmounts = [];
+  }
+
+  if (descOnly) {
+    currentDescriptionParts.push(descOnly);
+  }
+
+  if (currentDate) {
+    currentAmounts.push(inlineAmounts[inlineAmounts.length - 1]);
+  }
+
+  return;
+}
 
     const cleanedLine = cleanStatementChunk(line);
     if (cleanedLine) {
