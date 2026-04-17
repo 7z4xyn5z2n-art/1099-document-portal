@@ -594,27 +594,43 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const dateRegex = /\b\d{2}\/\d{2}\b/g;
 
   const allowedSectionDefinitions = [
-    {
-      id: 'deposits_additions',
-      fallbackType: 'income',
-      patterns: [/^deposits?\s*(?:and|&)\s*additions?$/i]
-    },
-    {
-      id: 'atm_debit_withdrawals',
-      fallbackType: 'expense',
-      patterns: [/^atm\s*(?:&|and)\s*debit(?:\s*card)?\s*withdrawals$/i, /^atm\s*debit\s*withdrawals$/i]
-    },
-    {
-      id: 'electronic_withdrawals',
-      fallbackType: 'expense',
-      patterns: [/^electronic\s*withdrawals$/i]
-    },
-    {
-      id: 'other_withdrawals',
-      fallbackType: 'expense',
-      patterns: [/^other\s*withdrawals$/i]
-    }
-  ];
+  {
+    id: 'deposits_additions',
+    fallbackType: 'income',
+    patterns: [
+      /^deposits?\s*(?:and|&)?\s*additions?$/i,
+      /^deposit[s]?\s*&\s*additions?$/i,
+      /^deposits?\s+additions?$/i
+    ]
+  },
+  {
+    id: 'atm_debit_withdrawals',
+    fallbackType: 'expense',
+    patterns: [
+      /^atm\s*(?:&|and)?\s*debit\s*card\s*withdrawals?$/i,
+      /^atm\s*debit\s*card\s*withdrawals?$/i,
+      /^atm\s*(?:&|and)?\s*debit\s*withdrawals?$/i,
+      /^debit\s*card\s*withdrawals?$/i
+    ]
+  },
+  {
+    id: 'electronic_withdrawals',
+    fallbackType: 'expense',
+    patterns: [
+      /^electronic\s*withdrawals?$/i,
+      /^electronic\s*payments?$/i,
+      /^electronic\s*debits?$/i
+    ]
+  },
+  {
+    id: 'other_withdrawals',
+    fallbackType: 'expense',
+    patterns: [
+      /^other\s*withdrawals?$/i,
+      /^other\s*debits?$/i
+    ]
+  }
+];
 
   const disallowedSectionPatterns = [
     /^checking\s*summary$/i,
@@ -753,10 +769,16 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   }
 
   function matchAllowedSection(line) {
-    const normalizedLine = normalizeStatementInline(line);
-    return allowedSectionDefinitions.find(definition => definition.patterns.some(pattern => pattern.test(normalizedLine))) || null;
-  }
+  const normalizedLine = normalizeStatementInline(line);
+  const matchText = normalizeMatchText(normalizedLine);
 
+  return allowedSectionDefinitions.find(definition =>
+    definition.patterns.some(pattern =>
+      pattern.test(normalizedLine) || pattern.test(matchText)
+    )
+  ) || null;
+}
+  
   function isDisallowedBoundaryLine(line) {
     const normalizedLine = normalizeStatementInline(line);
     if (!normalizedLine) return true;
@@ -768,36 +790,48 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     return !normalizedLine || isHeadingLine(normalizedLine) || isDisallowedBoundaryLine(normalizedLine);
   }
 
-  function extractStatementSections(text) {
-    const lines = splitStatementLines(text);
-    const sections = [];
+ function extractStatementSections(text) {
+  const lines = splitStatementLines(text);
+  const sections = [];
 
-    for (let i = 0; i < lines.length; i++) {
-      const sectionDefinition = matchAllowedSection(lines[i]);
-      if (!sectionDefinition) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const sectionDefinition = matchAllowedSection(lines[i]);
+    console.log('HEADER CHECK:', { line: lines[i], matchedSection: sectionDefinition?.id || null });
+    if (!sectionDefinition) continue;
 
-      const sectionLines = [];
+    const sectionLines = []; 
+    
+    for (let j = i + 1; j < lines.length; j++) {
+      const line = lines[j];
 
-      for (let j = i + 1; j < lines.length; j++) {
-        const line = lines[j];
+      if (matchAllowedSection(line)) break;
+      if (isTotalRowLine(line)) break;
 
-        if (isTotalRowLine(line)) break;
-        if (matchAllowedSection(line)) break;
-        if (isDisallowedBoundaryLine(line)) break;
-
-        sectionLines.push(line);
+      if (isDisallowedBoundaryLine(line)) {
+        continue;
       }
 
-      sections.push({
-        id: sectionDefinition.id,
-        fallbackType: sectionDefinition.fallbackType,
-        lines: sectionLines,
-        text: sectionLines.join('\n')
-      });
+      sectionLines.push(line);
     }
 
-    return sections.filter(section => section.lines.some(line => dateRegex.test(line) || amountRegex.test(line)));
+    sections.push({
+      id: sectionDefinition.id,
+      fallbackType: sectionDefinition.fallbackType,
+      lines: sectionLines,
+      text: sectionLines.join('\n')
+    });
+
+   console.log('SECTION CAPTURED:', {
+  id: sectionDefinition.id,
+  lineCount: sectionLines.length,
+  first3Lines: sectionLines.slice(0, 3)
+}); 
   }
+
+  return sections.filter(section =>
+    section.lines.some(line => /\b\d{2}\/\d{2}\b/.test(line) || amountRegex.test(line))
+  );
+}
 
   function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk) {
     const entryDate = normalizeStatementDate(rawDate, fallbackYear);
