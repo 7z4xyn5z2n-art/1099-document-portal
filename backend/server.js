@@ -1050,7 +1050,8 @@ if (isDisallowedBoundaryLine(line)) {
 
   const rowCandidates = [];
   const orphanAmounts = [];
-
+  let hasSeenTransactionRow = false;
+    
   lines.forEach(line => {
     if (isHeadingLine(line)) return;
 
@@ -1060,6 +1061,7 @@ if (isDisallowedBoundaryLine(line)) {
       if (!match) return;
 
       const rawDate = match[0];
+      hasSeenTransactionRow = true;
       const remainder = cleanStatementChunk(line.slice(rawDate.length));
 
       const inlineAmounts = [...remainder.matchAll(amountRegex)].map(m => m[0]);
@@ -1089,7 +1091,9 @@ if (isDisallowedBoundaryLine(line)) {
 
     // AMOUNT-ONLY LINE
     if (isAmountOnlyLine(line)) {
-      orphanAmounts.push(line);
+      if (hasSeenTransactionRow) {
+        orphanAmounts.push(line);
+      }
       return;
     }
 
