@@ -887,6 +887,7 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       continue;
     }
     if (
+      /summary/i.test(line) ||
       /checking\s*summary/i.test(line) ||
       /daily\s*ending\s*balance/i.test(line) ||
       /customer\s*service\s*information/i.test(line) ||
