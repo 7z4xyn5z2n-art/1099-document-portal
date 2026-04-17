@@ -772,39 +772,49 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const normalizedLine = normalizeStatementInline(line);
   const matchText = normalizeMatchText(normalizedLine);
 
-  const sectionAliases = {
-    deposits_additions: [
-      'deposits and additions',
-      'deposits additions',
-      'deposit additions'
-    ],
-    atm_debit_withdrawals: [
-      'atm debit card withdrawals',
-      'atm and debit card withdrawals',
-      'atm debit withdrawals',
-      'debit card withdrawals'
-    ],
-    electronic_withdrawals: [
-      'electronic withdrawals',
-      'electronic payments',
-      'electronic debits'
-    ],
-    other_withdrawals: [
-      'other withdrawals',
-      'other debits'
-    ]
-  };
+  if (!matchText) return null;
 
-  return allowedSectionDefinitions.find(definition => {
-    const directRegexMatch = definition.patterns.some(pattern =>
+  if (
+    matchText.includes('deposit') &&
+    matchText.includes('addition')
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'deposits_additions') || null;
+  }
+
+  if (
+    matchText.includes('atm') &&
+    (matchText.includes('debit') || matchText.includes('card')) &&
+    matchText.includes('withdraw')
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'atm_debit_withdrawals') || null;
+  }
+
+  if (
+    matchText.includes('electronic') &&
+    (
+      matchText.includes('withdraw') ||
+      matchText.includes('payment') ||
+      matchText.includes('debit')
+    )
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'electronic_withdrawals') || null;
+  }
+
+  if (
+    matchText.includes('other') &&
+    (
+      matchText.includes('withdraw') ||
+      matchText.includes('debit')
+    )
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'other_withdrawals') || null;
+  }
+
+  return allowedSectionDefinitions.find(definition =>
+    definition.patterns.some(pattern =>
       pattern.test(normalizedLine) || pattern.test(matchText)
-    );
-
-    if (directRegexMatch) return true;
-
-    const aliases = sectionAliases[definition.id] || [];
-    return aliases.some(alias => matchText.includes(alias));
-  }) || null;
+    )
+  ) || null;
 }
   
   function isDisallowedBoundaryLine(line) {
