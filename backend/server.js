@@ -1126,30 +1126,32 @@ if (isDisallowedBoundaryLine(line)) {
   let rowCount = 0;
   let columnCount = 0;
 
-  const forceColumn =
-  section.id === 'atm_debit_withdrawals' ||
-  section.id === 'electronic_withdrawals';
-
-if (forceColumn) {
-  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
-} else {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
 
-  if (rowCount === 0) {
+  const shouldTryColumnFallback =
+    rowCount === 0 ||
+    (
+      rowCount <= 1 &&
+      (
+        section.lines.some(line => isDateOnlyLine(line)) ||
+        section.lines.some(line => isAmountOnlyLine(line))
+      )
+    );
+
+  if (shouldTryColumnFallback) {
     columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
   }
-}
+
   console.log('SECTION DEBUG:', {
     id: section.id,
     fallbackType: section.fallbackType,
     lineCount: section.lines.length,
     rowCount,
     columnCount,
-    preferredMode: rowCount > 0 ? 'row' : 'column',
+    preferredMode: columnCount > rowCount ? 'column' : 'row',
     firstFiveLines: section.lines.slice(0, 5)
   });
 }
-
  const sections = extractStatementSections(rawText);
 
 console.log('SECTIONS FOUND:', sections.map(s => s.id));
