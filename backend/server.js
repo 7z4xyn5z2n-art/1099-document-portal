@@ -923,7 +923,8 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
 
   const entities = result?.document?.entities || [];
   const fullText = result?.document?.text || '';
-
+  console.log('FULL OCR TEXT PREVIEW:', fullText.slice(0, 4000));
+  
   let rawAmount =
     extractEntityText(entities, 'total_amount') ||
     extractEntityText(entities, 'net_amount') ||
