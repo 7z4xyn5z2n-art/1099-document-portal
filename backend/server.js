@@ -967,9 +967,18 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   }
 
   function processStatementSection(section) {
-    const rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
-    reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
-  }
+  const rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+  const columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+
+  console.log('SECTION DEBUG:', {
+    id: section.id,
+    fallbackType: section.fallbackType,
+    lineCount: section.lines.length,
+    rowCount,
+    columnCount,
+    firstFiveLines: section.lines.slice(0, 5)
+  });
+}
 
   const sections = extractStatementSections(rawText);
   sections.forEach(processStatementSection);
