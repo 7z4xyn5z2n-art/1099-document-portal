@@ -1010,20 +1010,17 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       });
   }
 
-  function collectAmountValues(lines) {
+ function collectAmountValues(lines) {
   return lines
     .map(line => normalizeStatementInline(line))
     .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line))
     .flatMap(line => {
       if (isDateOnlyLine(line)) return [];
-      if (isAmountOnlyLine(line)) return [line];
       if (line.toLowerCase().includes('daily ending balance')) return [];
 
-      if (!/^\d{2}\/\d{2}\b/.test(line)) {
-        if (/^\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}$/.test(line) && line.length < 15) {
-          return [];
-        }
+      if (isAmountOnlyLine(line)) return [line];
 
+      if (!/^\d{2}\/\d{2}\b/.test(line)) {
         const matches = [...line.matchAll(amountRegex)].map(match => match[0]);
         return matches;
       }
