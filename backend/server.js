@@ -847,15 +847,26 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       index: match.index
     }));
 
-    for (let i = 0; i < dateMatches.length; i++) {
-      const startMatch = dateMatches[i];
-      const nextBoundaryIndex = i + 1 < dateMatches.length ? dateMatches[i + 1].index : compactText.length;
-      const chunk = compactText.slice(startMatch.index, nextBoundaryIndex).trim();
+   for (let i = 0; i < dateMatches.length; i++) {
+  const startMatch = dateMatches[i];
 
-      if (!chunk || containsSummaryKeyword(chunk)) continue;
+  let nextBoundaryIndex = compactText.length;
 
-      const amountMatch = findLastAmountMatch(chunk);
-      if (!amountMatch) continue;
+  for (let j = i + 1; j < dateMatches.length; j++) {
+    const candidateChunk = compactText.slice(startMatch.index, dateMatches[j].index).trim();
+
+    if (findLastAmountMatch(candidateChunk)) {
+      nextBoundaryIndex = dateMatches[j].index;
+      break;
+    }
+  }
+
+  const chunk = compactText.slice(startMatch.index, nextBoundaryIndex).trim();
+
+  if (!chunk || containsSummaryKeyword(chunk)) continue;
+
+  const amountMatch = findLastAmountMatch(chunk);
+  if (!amountMatch) continue;
 
       const rawDate = startMatch.value;
       const rawAmount = amountMatch[0];
