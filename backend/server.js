@@ -1099,12 +1099,14 @@ if (isDisallowedBoundaryLine(line)) {
 
     // AMOUNT-ONLY LINE
     if (isAmountOnlyLine(line)) {
-      if (hasSeenTransactionRow) {
-        orphanAmounts.push(line);
-      }
-      return;
-    }
+  const hasUnmatchedRowCandidate = rowCandidates.length > orphanAmounts.length;
 
+  if (hasSeenTransactionRow && hasUnmatchedRowCandidate) {
+    orphanAmounts.push(line);
+  }
+
+  return;
+}
     // CONTINUATION DESCRIPTION
     const cleaned = cleanStatementChunk(line);
     if (!cleaned) return;
@@ -1134,19 +1136,23 @@ if (isDisallowedBoundaryLine(line)) {
   return transactions.length - beforeCount;
 }
   
- const hasColumnSignals =
-  section.lines.some(line => isDateOnlyLine(line)) ||
-  section.lines.some(line => isAmountOnlyLine(line));
+ function processStatementSection(section) {
+  let rowCount = 0;
+  let columnCount = 0;
 
-if (hasColumnSignals) {
-  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
-} else {
-  rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+  const hasColumnSignals =
+    section.lines.some(line => isDateOnlyLine(line)) ||
+    section.lines.some(line => isAmountOnlyLine(line));
 
-  if (rowCount === 0) {
-    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+  if (hasColumnSignals) {
+    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
+  } else {
+    rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+
+    if (rowCount === 0) {
+      columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+    }
   }
-}
 
   console.log('SECTION DEBUG:', {
     id: section.id,
