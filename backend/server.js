@@ -949,20 +949,59 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     if (!analysis.isColumnMode) return 0;
 
     const beforeCount = transactions.length;
-    let pairCount = Math.min(analysis.dates.length, analysis.amounts.length);
+     const pairCount = Math.min(analysis.dates.length, analysis.amounts.length);
     
     if (pairCount <= 0) return 0;
 
-    for (let i = 0; i < pairCount; i++) {
-      const rawDate = analysis.dates[i];
-      const rawAmount = analysis.amounts[i];
-      const rawDescription =
-        (analysis.descriptions && analysis.descriptions[i]) ||
-        `Transaction ${i + 1}`;
-      const rawChunk = `${rawDate} ${rawDescription} ${rawAmount}`;
-      pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk);
-    }
+    const sectionText = section.lines.join(' ');
+  
+    const dateMatchesInText = [...sectionText.matchAll(dateRegex)].map(match => ({
+      value: match[0],
+      index: match.index
+    }));
+    const amountMatchesInText = [...sectionText.matchAll(amountRegex)].map(match => ({
+      value: match[0],
+      index: match.index
+    }));
+    
+  const usedAmountIndexes = new Set();
 
+for (let i = 0; i < dateMatchesInText.length; i++) {
+  const rawDate = dateMatchesInText[i].value;
+  const nextDateIndex = i + 1 < dateMatchesInText.length
+    ? dateMatchesInText[i + 1].index
+    : sectionText.length;
+
+  let chosenAmount = null;
+  let chosenAmountIndex = -1;
+
+  for (let j = 0; j < amountMatchesInText.length; j++) {
+    if (usedAmountIndexes.has(j)) continue;
+
+    const amountIndex = amountMatchesInText[j].index;
+
+    if (amountIndex > dateMatchesInText[i].index && amountIndex < nextDateIndex) {
+      chosenAmount = amountMatchesInText[j].value;
+      chosenAmountIndex = j;
+      break;
+    }
+  }
+
+  if (!chosenAmount) continue;
+
+  usedAmountIndexes.add(chosenAmountIndex);
+
+  const rawDescription =
+    sectionText
+      .slice(dateMatchesInText[i].index + rawDate.length, amountMatchesInText[chosenAmountIndex].index)
+      .replace(/\b(?:DATE|DESCRIPTION|AMOUNT|INSTANCES)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() ||
+    `Transaction ${i + 1}`;
+
+  const rawChunk = `${rawDate} ${rawDescription} ${chosenAmount}`;
+  pushTransaction(rawDate, rawDescription, chosenAmount, fallbackType, rawChunk);
+}
     return transactions.length - beforeCount;
   }
 
