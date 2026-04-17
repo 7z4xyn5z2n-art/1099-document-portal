@@ -1101,6 +1101,20 @@
     function rerenderStatementDraft(documentId, contractorId) {
       loadDocuments(contractorId);
     }
+
+   function removeStatementDraftRow(documentId, contractorId, index) {
+  const draft = analysisDrafts[documentId];
+  if (!draft || !Array.isArray(draft.transactions)) return;
+
+  draft.transactions.splice(index, 1);
+
+  if (draft.transactions.length === 0) {
+    delete analysisDrafts[documentId];
+  }
+
+  loadDocuments(contractorId);
+} 
+    
   function renderStatementTransactionsPreview(documentId, contractorId, draft) {
   if (!draft || !Array.isArray(draft.transactions) || draft.transactions.length === 0) {
     return "";
@@ -1133,7 +1147,7 @@
         ">
           <div style="
             display:grid;
-            grid-template-columns:140px 1fr 120px 120px 160px;
+            grid-template-columns:140px 1fr 120px 120px 160px 90px;
             gap:8px;
             padding:10px 12px;
             font-size:12px;
@@ -1149,6 +1163,7 @@
             <div>Amount</div>
             <div>Type</div>
             <div>Category</div>
+            <div>Remove</div>
           </div>
 
            ${draft.transactions
@@ -1165,7 +1180,7 @@
               
             <div style="
               display:grid;
-              grid-template-columns:140px 1fr 120px 120px 160px;
+              grid-template-columns:140px 1fr 120px 120px 160px 90px;
               gap:8px;
               padding:10px 12px;
               font-size:12px;
@@ -1218,6 +1233,14 @@
                 <option value="Transfer" ${(tx.category || "Uncategorized") === "Transfer" ? "selected" : ""}>Transfer</option>
                 <option value="Uncategorized" ${(tx.category || "Uncategorized") === "Uncategorized" ? "selected" : ""}>Uncategorized</option>
               </select>
+            </div>
+            <div>
+              <button
+                onclick="removeStatementDraftRow('${documentId}', '${contractorId}', ${index})"
+                style="background:#ffe5e5; color:#b30000; border:1px solid #ffb3b3; padding:6px 8px; border-radius:6px; cursor:pointer; font-size:12px;"
+              >
+                Remove
+              </button>
             </div>
           </div>
         `).join("")}
