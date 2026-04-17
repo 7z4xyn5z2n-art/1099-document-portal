@@ -1050,7 +1050,10 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     const dateOnlyCount = lines.filter(isDateOnlyLine).length;
     const amountOnlyCount = lines.filter(isAmountOnlyLine).length;
     const hasColumnSignals = dateOnlyCount >= 2 || amountOnlyCount >= 2 || (lines.some(isHeadingLine) && rowCount === 0);
-    const isColumnMode = hasColumnSignals && alignedCount > rowCount && alignedCount > 0;
+    const isColumnMode =
+      section.id === 'electronic_withdrawals'
+        ? true
+        : hasColumnSignals && alignedCount > rowCount && alignedCount > 0;
 
     return {
       isColumnMode,
