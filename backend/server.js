@@ -581,18 +581,24 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     'checking summary',
     'deposits and additions',
     'atm & debit card withdrawals',
+    'atm and debit card withdrawals',
+    'atm debit withdrawals',
+    'card purchases',
     'atm & debit card summary',
     'electronic withdrawals',
     'other withdrawals',
+    'other transaction activity',
     'daily ending balance',
     'beginning balance',
     'ending balance',
     'customer service information',
     'chase business complete checking',
     'total deposits and additions',
+    'total deposits',
     'total atm & debit card withdrawals',
     'total electronic withdrawals',
     'total other withdrawals',
+    'total other transaction activity',
     'total atm withdrawals',
     'total card purchases',
     'total card deposits',
@@ -605,25 +611,43 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   const amountRegex = /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/g;
   const dateRegex = /\b\d{2}\/\d{2}\b/g;
 
-  function shouldSkipText(value) {
-    const text = String(value || '').toLowerCase();
+  function normalizeStatementText(value) {
+    return String(value || '')
+      .replace(/\r/g, '\n')
+      .replace(/\bDATE\b/gi, ' ')
+      .replace(/\bDESCRIPTION\b/gi, ' ')
+      .replace(/\bAMOUNT\b/gi, ' ')
+      .replace(/\*start\*/gi, ' ')
+      .replace(/\*end\*/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function containsSummaryKeyword(value) {
+    const text = normalizeStatementText(value).toLowerCase();
     if (!text) return true;
+
+  return [
+  'deposits and additions',
+  'total deposits',
+  'beginning balance',
+  'ending balance',
+  'daily ending balance',
+  'checking summary',
+  'customer service information'
+  ].some(keyword => text.includes(keyword));
+  }
+
+  function shouldSkipText(value) {
+    const text = normalizeStatementText(value).toLowerCase();
+    if (!text) return true;
+    if (containsSummaryKeyword(text)) return true;
     return skipPhrases.some(phrase => text.includes(phrase));
   }
 
   function cleanStatementChunk(value) {
-    return String(value || '')
-      .replace(/\bDATE\b/gi, ' ')
-      .replace(/\bDESCRIPTION\b/gi, ' ')
-      .replace(/\bAMOUNT\b/gi, ' ')
-      .replace(/\bTotal Deposits and Additions\b[\s\S]*$/i, ' ')
-      .replace(/\bTotal ATM\s*&\s*Debit Card Withdrawals\b[\s\S]*$/i, ' ')
-      .replace(/\bTotal Electronic Withdrawals\b[\s\S]*$/i, ' ')
-      .replace(/\bTotal Other Withdrawals\b[\s\S]*$/i, ' ')
-      .replace(/\bATM\s*&\s*DEBIT CARD SUMMARY\b[\s\S]*$/i, ' ')
-      .replace(/\bDAILY ENDING BALANCE\b[\s\S]*$/i, ' ')
-      .replace(/\bCHECKING SUMMARY\b[\s\S]*$/i, ' ')
-      .replace(/\*start\*[^\n]*|\*end\*[^\n]*/gi, ' ')
+    return normalizeStatementText(value)
+      .replace(/\b(?:checking summary|customer service information|chase business complete checking)\b/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
   }
@@ -673,68 +697,123 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     ].join('|');
   }
 
+  function buildGlobalRegex(regex) {
+    const flags = regex.flags.includes('g') ? regex.flags : `${regex.flags}g`;
+    return new RegExp(regex.source, flags);
+  }
+
+  function countDateAnchors(text) {
+    return [...cleanStatementChunk(text).matchAll(dateRegex)].length;
+  }
+
   function findLastAmountMatch(chunk) {
     const matches = [...String(chunk || '').matchAll(amountRegex)];
     return matches.length ? matches[matches.length - 1] : null;
   }
 
+  function hasDisallowedSectionPrefix(text, index) {
+    const prefix = text.slice(Math.max(0, index - 24), index).toLowerCase();
+    return /(total\s+|beginning\s+|ending\s+|daily\s+ending\s+)/.test(prefix);
+  }
+
   function extractStatementSections(text) {
-    const definitions = [
+    const sectionDefinitions = [
       {
-        start: '*start*deposits and additions',
-        end: '*end*deposits and additions',
-        fallbackType: 'income'
+        id: 'deposits_additions',
+        fallbackType: 'income',
+        patterns: [
+          /\*start\*[\s\S]{0,60}?deposits?\s*(?:and|&)\s*additions?/i,
+          /deposits?\s*(?:and|&)\s*additions?/i
+        ]
       },
       {
-        start: '*start*atm debit withdrawal',
-        end: '*end*atm debit withdrawal',
-        fallbackType: 'expense'
+        id: 'atm_debit_withdrawals',
+        fallbackType: 'expense',
+        patterns: [
+          /\*start\*[\s\S]{0,60}?atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals\b/i,
+          /atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals\b/i,
+          /atm\s*debit\s*withdrawals\b/i
+        ]
       },
       {
-        start: '*start*electronic withdrawal',
-        end: '*end*electronic withdrawal',
-        fallbackType: 'expense'
+        id: 'card_purchases',
+        fallbackType: 'expense',
+        patterns: [
+          /\*start\*[\s\S]{0,60}?card\s*purchases\b/i,
+          /card\s*purchases\b/i
+        ]
       },
       {
-        start: '*start*other withdrawals',
-        end: '*end*other withdrawals',
-        fallbackType: 'expense'
+        id: 'electronic_withdrawals',
+        fallbackType: 'expense',
+        patterns: [
+          /\*start\*[\s\S]{0,60}?electronic\s*withdrawals\b/i,
+          /electronic\s*withdrawals\b/i
+        ]
+      },
+      {
+        id: 'other_transactions',
+        fallbackType: 'expense',
+        patterns: [
+          /\*start\*[\s\S]{0,60}?other\s*(?:withdrawals\b|transaction\s*activity|transactions\b|activity\b)/i,
+          /other\s*(?:withdrawals\b|transaction\s*activity|transactions\b|activity\b)/i,
+          /other\s*transaction\s*activity/i
+        ]
       }
     ];
 
-    const sections = definitions
-      .map(definition => {
-        const startIndex = text.toLowerCase().indexOf(definition.start);
-        const endIndex = text.toLowerCase().indexOf(definition.end);
+    const starts = [];
 
-        if (startIndex === -1 || endIndex === -1 || endIndex <= startIndex) {
-          return null;
+    sectionDefinitions.forEach(definition => {
+      definition.patterns.forEach(pattern => {
+        const regex = buildGlobalRegex(pattern);
+        let match;
+
+        while ((match = regex.exec(text)) !== null) {
+          if (hasDisallowedSectionPrefix(text, match.index)) {
+            if (regex.lastIndex === match.index) regex.lastIndex += 1;
+            continue;
+          }
+
+          starts.push({
+            id: definition.id,
+            fallbackType: definition.fallbackType,
+            index: match.index,
+            length: match[0].length
+          });
+
+          if (regex.lastIndex === match.index) regex.lastIndex += 1;
         }
+      });
+    });
 
-        return {
-          fallbackType: definition.fallbackType,
-          text: text.slice(startIndex, endIndex)
-        };
-      })
-      .filter(Boolean);
+    const orderedStarts = starts
+      .sort((a, b) => a.index - b.index || b.length - a.length)
+      .filter((candidate, idx, array) => {
+        const previous = array[idx - 1];
+        if (!previous) return true;
+        if (candidate.id !== previous.id) return true;
+        return Math.abs(candidate.index - previous.index) > 30;
+      });
 
-    if (sections.length > 0) return sections;
-
-    return [{ fallbackType: null, text }];
+    return orderedStarts.map((start, idx) => ({
+      fallbackType: start.fallbackType,
+      text: text.slice(start.index, idx + 1 < orderedStarts.length ? orderedStarts[idx + 1].index : text.length)
+    }));
   }
 
-  function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType) {
+  function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk) {
     const entryDate = normalizeStatementDate(rawDate, fallbackYear);
     const parsedAmount = parseStatementAmount(rawAmount);
     const cleanedDescription = cleanStatementDescription(rawDescription)
-      .replace(/\b(?:card purchase|atm withdrawal|atm check deposit|deposit|payment to|dr due to|orig co name:)\b\s*/i, match => match.trim() + ' ')
+      .replace(/\b(?:card purchase|atm withdrawal|atm check deposit|deposit|payment to|dr due to|orig co name:)\b\s*/i, match => `${match.trim()} `)
       .trim();
     const weakDescription = isWeakOrNoisyDescription(cleanedDescription);
     const description = weakDescription ? 'Unknown Transaction' : cleanedDescription;
 
     if (!entryDate || !parsedAmount) return;
     if (!parsedAmount.amount || Number(parsedAmount.amount) <= 0) return;
-    if (shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
+    if (shouldSkipText(rawChunk) || shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
 
     const categoryGuess = guessCategoryFromText(description);
     const detectedType = detectStatementEntryType(description, fallbackType || parsedAmount.direction);
@@ -768,48 +847,42 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
       index: match.index
     }));
 
-    let cursor = 0;
-
-    while (cursor < dateMatches.length) {
-      const startMatch = dateMatches[cursor];
-      let nextBoundaryIndex = compactText.length;
-      let nextCursor = dateMatches.length;
-
-      for (let i = cursor + 1; i < dateMatches.length; i++) {
-        const between = compactText.slice(startMatch.index, dateMatches[i].index);
-        if (findLastAmountMatch(between)) {
-          nextBoundaryIndex = dateMatches[i].index;
-          nextCursor = i;
-          break;
-        }
-      }
-
+    for (let i = 0; i < dateMatches.length; i++) {
+      const startMatch = dateMatches[i];
+      const nextBoundaryIndex = i + 1 < dateMatches.length ? dateMatches[i + 1].index : compactText.length;
       const chunk = compactText.slice(startMatch.index, nextBoundaryIndex).trim();
+
+      if (!chunk || containsSummaryKeyword(chunk)) continue;
+
       const amountMatch = findLastAmountMatch(chunk);
+      if (!amountMatch) continue;
 
-      if (amountMatch) {
-        const rawDate = startMatch.value;
-        const rawAmount = amountMatch[0];
-        const rawDescription = chunk
-          .slice(rawDate.length, amountMatch.index)
-          .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+      const rawDate = startMatch.value;
+      const rawAmount = amountMatch[0];
+      const rawDescription = chunk
+        .slice(rawDate.length, amountMatch.index)
+        .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 
-        pushTransaction(rawDate, rawDescription, rawAmount, fallbackType);
-      }
-
-      if (nextCursor >= dateMatches.length) {
-        break;
-      }
-
-      cursor = nextCursor;
+      pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, chunk);
     }
   }
 
-  extractStatementSections(rawText).forEach(section => {
-    extractTransactionsFromSection(section.text, section.fallbackType);
-  });
+  const sections = extractStatementSections(rawText);
+
+  if (sections.length > 0) {
+    sections.forEach(section => {
+      extractTransactionsFromSection(section.text, section.fallbackType);
+    });
+  }
+
+  const fullTextAnchorCount = countDateAnchors(rawText);
+  const shouldRunFallback = sections.length === 0 || transactions.length === 0 || (transactions.length <= 1 && fullTextAnchorCount > transactions.length);
+
+  if (shouldRunFallback) {
+    extractTransactionsFromSection(rawText, null);
+  }
 
   const finalSeen = new Set();
 
