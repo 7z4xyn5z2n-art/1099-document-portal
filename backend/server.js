@@ -1057,6 +1057,11 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
 
     const transactions = parseStatementTransactionsFromText(fullText, fallbackYear);
 
+    console.log('STATEMENT PARSE DEBUG:', {
+      transactionCount: transactions.length,
+      firstThree: transactions.slice(0, 3)
+    });
+
     return {
       amount: transactions[0]?.amount || '0.00',
       vendor_or_payor: cleanedVendor || 'Bank Statement',
