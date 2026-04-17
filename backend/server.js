@@ -1140,14 +1140,13 @@ if (isDisallowedBoundaryLine(line)) {
   let rowCount = 0;
   let columnCount = 0;
 
- const hasColumnSignals =
-  section.lines.some(line => isDateOnlyLine(line)) ||
-  section.lines.some(line => isAmountOnlyLine(line));
-
-if (section.id === 'deposits_additions') {
+ if (section.id === 'deposits_additions') {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
   columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
-} else if (hasColumnSignals) {
+} else if (
+  section.id === 'atm_debit_withdrawals' ||
+  section.id === 'electronic_withdrawals'
+) {
   columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
 } else {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
