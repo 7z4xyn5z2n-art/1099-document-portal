@@ -1141,10 +1141,9 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
   const orphanAmounts = [];
 
   section.lines.forEach(line => {
-    const normalizedLine = normalizeStatementInline(line);
-    if (!normalizedLine) return;
-    if (isTotalRowLine(normalizedLine)) return;
-
+   const normalizedLine = normalizeStatementInline(line);
+   if (!normalizedLine) return;
+   if (isTotalRowLine(normalizedLine)) return;
     const segments = splitLineIntoDateStartSegments(normalizedLine);
 
     segments.forEach(segment => {
