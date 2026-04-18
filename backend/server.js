@@ -955,10 +955,17 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     const weakDescription = isWeakOrNoisyDescription(cleanedDescription);
     const description = weakDescription ? 'Unknown Transaction' : cleanedDescription;
 
+    const chunkText = cleanStatementChunk(rawChunk || `${rawDate} ${rawDescription} ${rawAmount}`);
+    const chunkAmountMatches = [...chunkText.matchAll(amountRegex)];
+    const chunkDateMatches = [...chunkText.matchAll(/\b\d{2}\/\d{2}\b/g)];
+
     if (!entryDate || !parsedAmount) return;
     if (!parsedAmount.amount || Number(parsedAmount.amount) <= 0) return;
-    if (shouldSkipText(rawChunk) || shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
+    if (shouldSkipText(chunkText) || shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
 
+    if (chunkAmountMatches.length > 1) return;
+    if (chunkDateMatches.length > 1) return;
+    
     const categoryGuess = guessCategoryFromText(description);
     const detectedType = detectStatementEntryType(description, fallbackType || parsedAmount.direction);
     const transaction = {
