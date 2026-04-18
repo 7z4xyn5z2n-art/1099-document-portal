@@ -1195,8 +1195,16 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
       }
 
       if (amountOnly) {
-        const hasPendingRow = rowCandidates.length > orphanAmounts.length;
-        if (!hasPendingRow) return;
+        const unmatchedCount = rowCandidates.length - orphanAmounts.length;
+        const nextPendingRow = rowCandidates[orphanAmounts.length];
+        const nextDescription = normalizeMatchText(nextPendingRow?.rawDescription || '');
+
+        if (unmatchedCount !== 1) return;
+        if (!nextDescription) return;
+        if (nextDescription === 'unknown transaction') return;
+        if (nextDescription.includes('summary')) return;
+        if (nextDescription.includes('total')) return;
+        if (nextDescription.includes('daily ending balance')) return;
 
         orphanAmounts.push(cleanSegment);
         return;
