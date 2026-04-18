@@ -122,8 +122,26 @@ function extractEntityText(entities, type) {
 
 function normalizeAmount(value) {
   if (!value) return '';
-  const cleaned = String(value).replace(/[^0-9.-]/g, '');
-  return cleaned || '';
+
+  let raw = String(value).trim();
+  if (!raw) return '';
+
+  const isNegative = /\(.*\)/.test(raw) || /^-/.test(raw);
+
+  raw = raw
+    .replace(/\((.*)\)/, '$1')
+    .replace(/[$,\s]/g, '')
+    .replace(/[^0-9.-]/g, '')
+    .trim();
+
+  const match = raw.match(/-?\d+(?:\.\d{1,2})?/);
+  if (!match) return '';
+
+  const number = Number(match[0]);
+  if (Number.isNaN(number)) return '';
+
+  const normalized = Math.abs(number).toFixed(2);
+  return isNegative && normalized !== '0.00' ? normalized : normalized;
 }
 
 function guessCategoryFromText(textSource) {
@@ -303,6 +321,162 @@ function normalizeMatchText(value) {
     .trim();
 }
 
+function normalizeReceiptDate(raw, fallbackYear) {
+  if (!raw) return '';
+
+  const value = String(raw)
+    .replace(/(\d)(st|nd|rd|th)\b/gi, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!value) return '';
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const slashNormalized = normalizeStatementDate(value.replace(/-/g, '/'), fallbackYear);
+  if (slashNormalized) return slashNormalized;
+
+  const parsedDate = new Date(value);
+  if (!Number.isNaN(parsedDate.getTime())) {
+    return parsedDate.toISOString().slice(0, 10);
+  }
+
+  return '';
+}
+
+function cleanReceiptVendor(rawVendor, fullText) {
+  let vendor = String(rawVendor || '')
+    .replace(/\s+/g, ' ')
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .trim();
+
+  if (!vendor && fullText) {
+    const lines = String(fullText)
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
+
+    const candidate = lines.find(line => {
+      const normalized = normalizeMatchText(line);
+      if (!normalized) return false;
+      if (normalized.length < 3) return false;
+      if (!/[a-z]/.test(normalized)) return false;
+      if (/\b(receipt|invoice|date|total|subtotal|tax|balance|approved|thank you|visa|mastercard|amex)\b/.test(normalized)) return false;
+      return true;
+    });
+
+    vendor = candidate || '';
+  }
+
+  vendor = vendor
+    .replace(/\s+/g, ' ')
+    .replace(/^[^a-zA-Z0-9]+/, '')
+    .trim();
+
+  if (vendor.length > 60) {
+    vendor = vendor.slice(0, 60).trim();
+  }
+
+  return vendor || 'Unknown Vendor';
+}
+
+function isWeakReceiptVendor(vendor) {
+  const normalized = normalizeMatchText(vendor);
+
+  if (!normalized) return true;
+  if (normalized === 'unknown vendor') return true;
+  if (normalized.length < 3) return true;
+  if (!/[a-z]/.test(normalized)) return true;
+
+  return false;
+}
+
+function detectReceiptEntryType(documentType, textSource) {
+  const docType = String(documentType || '').toLowerCase();
+  const text = String(textSource || '').toLowerCase();
+
+  if (docType === 'invoice') return 'income';
+
+  if (
+    text.includes('refund') ||
+    text.includes('credit') ||
+    text.includes('reimbursement') ||
+    text.includes('returned')
+  ) {
+    return 'income';
+  }
+
+  return 'expense';
+}
+
+function calculateReceiptConfidence(receipt) {
+  const hasValidDate = !!receipt?.entry_date && !Number.isNaN(new Date(receipt.entry_date).getTime());
+  const amountNumber = Number(receipt?.amount || 0);
+  const hasValidAmount = Number.isFinite(amountNumber) && amountNumber > 0;
+  const vendor = String(receipt?.vendor_or_payor || '').trim();
+  const hasStrongVendor = !isWeakReceiptVendor(vendor);
+  const hasKnownCategory = !!receipt?.category && receipt.category !== 'Uncategorized';
+
+  if (hasValidDate && hasValidAmount && hasStrongVendor && hasKnownCategory) {
+    return 'high';
+  }
+
+  if (hasValidDate && hasValidAmount && hasStrongVendor) {
+    return 'medium';
+  }
+
+  return 'low';
+}
+
+function isValidReceiptAnalysis(receipt) {
+  if (!receipt) return false;
+
+  const amountNumber = Number(receipt.amount || 0);
+  if (!Number.isFinite(amountNumber) || amountNumber <= 0) return false;
+
+  if (!receipt.entry_date || Number.isNaN(new Date(receipt.entry_date).getTime())) return false;
+
+  return true;
+}
+
+function buildReceiptAnalysisKey(receipt) {
+  return [
+    receipt.entry_date || '',
+    Number(receipt.amount || 0).toFixed(2),
+    normalizeMatchText(receipt.vendor_or_payor || ''),
+    receipt.entry_type || ''
+  ].join('|');
+}
+
+function finalizeBatchReceiptResults(results) {
+  const seen = new Set();
+
+  return (results || [])
+    .filter(result => {
+      if (result?.status !== 'success') return true;
+      if (Array.isArray(result.transactions) && result.transactions.length > 0) return true;
+
+      const suggested = result?.suggested || {};
+      if (!isValidReceiptAnalysis(suggested)) return false;
+      if (suggested.confidence === 'low' && isWeakReceiptVendor(suggested.vendor_or_payor)) return false;
+
+      const key = buildReceiptAnalysisKey(suggested);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => {
+      const aIsReceipt = a?.status === 'success' && (!Array.isArray(a.transactions) || a.transactions.length === 0);
+      const bIsReceipt = b?.status === 'success' && (!Array.isArray(b.transactions) || b.transactions.length === 0);
+
+      if (!aIsReceipt || !bIsReceipt) return 0;
+
+      return String(b?.suggested?.entry_date || '').localeCompare(String(a?.suggested?.entry_date || ''));
+    });
+}
+
 function isWithinDays(dateA, dateB, maxDays) {
   if (!dateA || !dateB) return false;
 
@@ -378,134 +552,727 @@ function isLikelyReceiptTransactionMatch(receipt, transaction) {
   };
 }
 
-function parseStatementTransactionsFromText(fullText, fallbackYear) {
-  const rawLines = String(fullText || '')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean);
+function calculateTransactionConfidence(transaction) {
+  const normalizedDescription = normalizeMatchText(transaction?.vendor_or_payor || '');
+  const amountNumber = Number(transaction?.amount || 0);
+  const hasValidDate = !!transaction?.entry_date && !Number.isNaN(new Date(transaction.entry_date).getTime());
+  const hasValidAmount = Number.isFinite(amountNumber) && amountNumber > 0;
+  const hasStrongDescription = normalizedDescription.length >= 8 && /[a-z]/.test(normalizedDescription);
+  const hasWeakDescription = normalizedDescription.length < 5 || normalizedDescription === 'unknown transaction';
 
+  if (hasValidDate && hasValidAmount && hasStrongDescription) {
+    return 'high';
+  }
+
+  if (hasValidDate && hasValidAmount && !hasWeakDescription) {
+    return 'medium';
+  }
+
+  return 'low';
+}
+
+function parseStatementTransactionsFromText(fullText, fallbackYear) {
+  const rawText = String(fullText || '');
   const transactions = [];
   const seen = new Set();
 
   const skipPhrases = [
-    'date description amount',
     'checking summary',
-    'deposits and additions',
-    'atm & debit card withdrawals',
     'atm & debit card summary',
-    'electronic withdrawals',
-    'other withdrawals',
     'daily ending balance',
     'beginning balance',
     'ending balance',
     'customer service information',
     'chase business complete checking',
-    'total deposits and additions',
-    'total atm & debit card withdrawals',
-    'total electronic withdrawals',
-    'total other withdrawals',
-    'total atm withdrawals',
-    'total card purchases',
-    'total card deposits',
-    'atm & debit card totals',
-    '*start*',
-    '*end*',
-    'page '
+    'page ',
+    'member fdic',
+    'this page intentionally left blank'
   ];
 
-  function shouldSkipLine(line) {
-    const text = String(line || '').toLowerCase();
-    if (!text) return true;
-    return skipPhrases.some(phrase => text.includes(phrase));
-  }
+  const amountRegex = /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/g;
+  const amountReplaceRegex = new RegExp(amountRegex.source, 'g');
+  const dateRegex = /\b\d{2}\/\d{2}\b/g;
 
-  function cleanChaseLine(line) {
-    return String(line || '')
-      .replace(/\s+total atm withdrawals.*$/i, '')
-      .replace(/\s+total card purchases.*$/i, '')
-      .replace(/\s+total card deposits.*$/i, '')
-      .replace(/\s+atm & debit card totals.*$/i, '')
-      .replace(/\s+checking summary.*$/i, '')
-      .replace(/\s+daily ending balance.*$/i, '')
-      .replace(/\s+electronic withdrawals.*$/i, '')
-      .replace(/\s+other withdrawals.*$/i, '')
-      .replace(/\s+deposits and additions.*$/i, '')
+  const allowedSectionDefinitions = [
+  {
+    id: 'deposits_additions',
+    fallbackType: 'income',
+    patterns: [
+      /^deposits?\s*(?:and|&)?\s*additions?$/i,
+      /^deposit[s]?\s*&\s*additions?$/i,
+      /^deposits?\s+additions?$/i
+    ]
+  },
+  {
+    id: 'atm_debit_withdrawals',
+    fallbackType: 'expense',
+    patterns: [
+      /^atm\s*(?:&|and)?\s*debit\s*card\s*withdrawals?$/i,
+      /^atm\s*debit\s*card\s*withdrawals?$/i,
+      /^atm\s*(?:&|and)?\s*debit\s*withdrawals?$/i,
+      /^debit\s*card\s*withdrawals?$/i
+    ]
+  },
+  {
+    id: 'electronic_withdrawals',
+    fallbackType: 'expense',
+    patterns: [
+      /^electronic\s*withdrawals?$/i,
+      /^electronic\s*payments?$/i,
+      /^electronic\s*debits?$/i
+    ]
+  },
+  {
+    id: 'other_withdrawals',
+    fallbackType: 'expense',
+    patterns: [
+      /^other\s*withdrawals?$/i,
+      /^other\s*debits?$/i
+    ]
+  }
+];
+
+  const disallowedSectionPatterns = [
+    /^checking\s*summary$/i,
+    /^atm\s*(?:&|and)\s*debit(?:\s*card)?\s*summary$/i,
+    /^daily\s*ending\s*balance$/i,
+    /^customer\s*service\s*information$/i,
+    /^in\s+case\s+of\s+errors/i,
+    /^how\s+to\s+avoid\s+the\s+monthly\s+service\s+fee/i,
+    /^web\s*site:/i,
+    /^service\s*center:/i,
+    /^para\s+espanol:/i,
+    /^international\s+calls:/i,
+    /^we\s+accept\s+operator\s+relay\s+calls/i,
+    /^this\s+page\s+intentionally\s+left\s+blank$/i,
+    /^page\s+\d+(?:\s+of\s+\d+)?$/i,
+    /^jpmorgan\s+chase\s+bank/i,
+    /^member\s+fdic$/i,
+    /^account\s+number:/i,
+    /^[A-Za-z]+\s+\d{1,2},\s+\d{4}\s+through\s+[A-Za-z]+\s+\d{1,2},\s+\d{4}$/i,
+    /^beginning\s+balance$/i,
+    /^ending\s+balance$/i
+  ];
+
+  function normalizeStatementInline(value) {
+    return String(value || '')
+      .replace(/\r/g, '\n')
+      .replace(/\*start\*/gi, ' ')
+      .replace(/\*end\*/gi, ' ')
+      .replace(/\s+/g, ' ')
       .trim();
   }
 
-  function pushTransaction(rawDate, rawDescription, rawAmount) {
+  function splitStatementLines(value) {
+    return String(value || '')
+      .replace(/\r/g, '\n')
+      .split('\n')
+      .map(line => normalizeStatementInline(line))
+      .filter(Boolean);
+  }
+
+  function containsSummaryKeyword(value) {
+    const text = normalizeStatementInline(value).toLowerCase();
+    if (!text) return true;
+
+    return [
+      'checking summary',
+      'atm & debit card summary',
+      'daily ending balance',
+      'beginning balance',
+      'ending balance',
+      'customer service information',
+      'summary',
+      'total'
+    ].some(keyword => text.includes(keyword));
+  }
+
+  function shouldSkipText(value) {
+    const text = normalizeStatementInline(value).toLowerCase();
+    if (!text) return true;
+    if (containsSummaryKeyword(text)) return true;
+    return skipPhrases.some(phrase => text.includes(phrase));
+  }
+
+  function cleanStatementChunk(value) {
+    return normalizeStatementInline(value)
+      .replace(/\b(?:DATE|DESCRIPTION|AMOUNT|INSTANCES)\b/gi, ' ')
+      .replace(/\b(?:checking summary|atm & debit card summary|daily ending balance|customer service information|chase business complete checking)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function isWeakOrNoisyDescription(description) {
+    const raw = String(description || '').trim();
+    const normalized = normalizeMatchText(raw);
+
+    if (!normalized) return true;
+
+    const meaningfulChars = normalized.replace(/\s+/g, '');
+    if (meaningfulChars.length < 3) return true;
+
+    const alphaCount = (normalized.match(/[a-z]/g) || []).length;
+    const digitCount = (normalized.match(/\d/g) || []).length;
+
+    if (alphaCount === 0) return true;
+    if (digitCount > alphaCount * 2) return true;
+    if (/^(?:x+|xx+|na|n a|unknown|misc|miscellaneous)$/.test(normalized)) return true;
+    if (/^(?:\d+|[-_.*#\s]+)$/.test(raw)) return true;
+
+    return false;
+  }
+
+  function isValidTransactionRow(transaction) {
+    if (!transaction) return false;
+    if (!transaction.entry_date || Number.isNaN(new Date(transaction.entry_date).getTime())) return false;
+
+    const amount = Number(transaction.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) return false;
+
+    const description = String(transaction.vendor_or_payor || '').trim();
+    const normalized = normalizeMatchText(description);
+
+    if (!normalized) return false;
+    if (description === 'Unknown Transaction' && amount <= 0) return false;
+
+    return true;
+  }
+
+  function buildTransactionKey(transaction) {
+    return [
+      transaction.entry_date,
+      normalizeMatchText(transaction.vendor_or_payor || ''),
+      Number(transaction.amount || 0).toFixed(2),
+      transaction.entry_type || ''
+    ].join('|');
+  }
+
+  function findLastAmountMatch(chunk) {
+    const matches = [...String(chunk || '').matchAll(amountRegex)];
+    return matches.length ? matches[matches.length - 1] : null;
+  }
+
+  function isHeadingLine(line) {
+    return /^(?:date|amount|description|instances|date description amount)$/i.test(String(line || '').trim());
+  }
+
+  function isDateOnlyLine(line) {
+    return /^\d{2}\/\d{2}$/.test(String(line || '').trim());
+  }
+
+  function isAmountOnlyLine(line) {
+    return /^-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}$/.test(String(line || '').trim());
+  }
+
+  function isTotalRowLine(line) {
+    return /^total\b/i.test(String(line || '').trim());
+  }
+
+ function matchAllowedSection(line) {
+  const normalizedLine = normalizeStatementInline(line);
+  const matchText = normalizeMatchText(normalizedLine);
+
+  if (!matchText) return null;
+
+  if (
+    (
+      /\bdeposits?\b/.test(matchText) ||
+      /\bcredits?\b/.test(matchText) ||
+      /\bmoney\s+in\b/.test(matchText)
+    ) &&
+    (
+      /\badditions?\b/.test(matchText) ||
+      /\breceived\b/.test(matchText) ||
+      /\bincoming\b/.test(matchText) ||
+      /\bcredits?\b/.test(matchText)
+    )
+) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'deposits_additions') || null;
+  }
+
+  if (
+    /\batm\b/.test(matchText) &&
+    (/\bdebit\b/.test(matchText) || /\bcard\b/.test(matchText)) &&
+    /\bwithdrawals?\b/.test(matchText)
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'atm_debit_withdrawals') || null;
+  }
+
+  if (
+    /\belectronic\b/.test(matchText) &&
+    (/\bwithdrawals?\b/.test(matchText) || /\bpayments?\b/.test(matchText) || /\bdebits?\b/.test(matchText))
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'electronic_withdrawals') || null;
+  }
+
+  if (
+    /\bother\b/.test(matchText) &&
+    (/\bwithdrawals?\b/.test(matchText) || /\bdebits?\b/.test(matchText))
+  ) {
+    return allowedSectionDefinitions.find(definition => definition.id === 'other_withdrawals') || null;
+  }
+
+  return allowedSectionDefinitions.find(definition =>
+    definition.patterns.some(pattern =>
+      pattern.test(normalizedLine) || pattern.test(matchText)
+    )
+  ) || null;
+}
+  
+  function isDisallowedBoundaryLine(line) {
+    const normalizedLine = normalizeStatementInline(line);
+    if (!normalizedLine) return true;
+    return disallowedSectionPatterns.some(pattern => pattern.test(normalizedLine));
+  }
+
+  function isIgnorableSectionLine(line) {
+    const normalizedLine = normalizeStatementInline(line);
+    if (!normalizedLine) return true;
+    if (isHeadingLine(normalizedLine)) return true;
+    return false;
+  }
+
+ function splitLineIntoDateStartSegments(line) {
+  const normalized = cleanStatementChunk(line);
+  if (!normalized) return [];
+
+  const matches = [...normalized.matchAll(/\b\d{2}\/\d{2}\b/g)];
+  if (matches.length <= 1 || matches[0].index !== 0) {
+    return [normalized];
+  }
+
+  const segments = [];
+  let start = 0;
+
+  for (let i = 1; i < matches.length; i += 1) {
+    const nextIndex = matches[i].index;
+    const currentSlice = normalized.slice(start, nextIndex).trim();
+    const remainingSlice = normalized.slice(nextIndex).trim();
+
+    const currentAmountCount = [...currentSlice.matchAll(amountRegex)].length;
+    const remainingAmountCount = [...remainingSlice.matchAll(amountRegex)].length;
+    const alphaAfterDate = currentSlice
+      .replace(/^\d{2}\/\d{2}\b/, '')
+      .replace(/[^A-Za-z]/g, '')
+      .length;
+
+    if (currentAmountCount >= 1 && remainingAmountCount >= 1 && alphaAfterDate >= 2) {
+      segments.push(currentSlice);
+      start = nextIndex;
+    }
+  }
+
+  const tail = normalized.slice(start).trim();
+  if (tail) segments.push(tail);
+
+  return segments.length ? segments : [normalized];
+}
+  
+ function extractStatementSections(text) {
+  const lines = splitStatementLines(text);
+  const sections = [];
+
+  let currentSection = null;
+
+  function finishCurrentSection() {
+    if (!currentSection) return;
+
+    const cleanedLines = currentSection.lines.filter(line => {
+      const normalizedLine = normalizeStatementInline(line);
+      if (!normalizedLine) return false;
+      if (isHeadingLine(normalizedLine)) return false;
+      if (isTotalRowLine(normalizedLine)) return false;
+      if (/^total\s+/i.test(normalizedLine)) return false;
+      return true;
+    });
+
+    if (
+      cleanedLines.some(line =>
+        /\b\d{2}\/\d{2}\b/.test(line) ||
+        /-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2}/.test(line)
+      )
+    ) {
+      sections.push({
+        id: currentSection.id,
+        fallbackType: currentSection.fallbackType,
+        lines: cleanedLines,
+        text: cleanedLines.join('\n')
+      });
+    }
+
+    currentSection = null;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+      const nextLine = lines[i + 1] || '';
+      const combinedHeaderLine = `${line} ${nextLine}`.trim();
+      const sectionDefinition =
+        matchAllowedSection(line) ||
+        matchAllowedSection(combinedHeaderLine);
+    if (sectionDefinition) {
+      finishCurrentSection();
+      currentSection = {
+        id: sectionDefinition.id,
+        fallbackType: sectionDefinition.fallbackType,
+        lines: []
+      };
+      continue;
+    }
+
+       if (!currentSection) continue;
+
+    if (
+  isTotalRowLine(line) ||
+  /^total\s+/i.test(line) ||
+  /total\s+deposits?\s*(?:and|&)?\s*additions?/i.test(line) ||
+  /total\s+atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals?/i.test(line) ||
+  /total\s+electronic\s*withdrawals?/i.test(line) ||
+  /total\s+other\s*withdrawals?/i.test(line)
+) {
+  continue;
+}
+    if (
+      /checking\s*summary/i.test(line) ||
+      /daily\s*ending\s*balance/i.test(line) ||
+      /customer\s*service\s*information/i.test(line) ||
+      /this\s+page\s+intentionally\s+left\s+blank/i.test(line)
+    ) {
+      finishCurrentSection();
+      continue;
+    }
+
+    if (isDisallowedBoundaryLine(line)) {
+      continue;
+    }
+
+    currentSection.lines.push(line);
+  }
+
+  finishCurrentSection();
+
+  return sections;
+}
+
+  function pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rawChunk) {
     const entryDate = normalizeStatementDate(rawDate, fallbackYear);
     const parsedAmount = parseStatementAmount(rawAmount);
-    const description = cleanStatementDescription(rawDescription);
+    const cleanedDescription = cleanStatementDescription(rawDescription)
+      .replace(/\b(?:card purchase|atm withdrawal|atm check deposit|deposit|payment to|dr due to|orig co name:)\b\s*/i, match => `${match.trim()} `)
+      .trim();
+    const weakDescription = isWeakOrNoisyDescription(cleanedDescription);
+    const description = weakDescription ? 'Unknown Transaction' : cleanedDescription;
 
-    if (!entryDate || !parsedAmount || !description) return;
-    if (shouldSkipLine(description)) return;
+    const chunkText = cleanStatementChunk(rawChunk || `${rawDate} ${rawDescription} ${rawAmount}`);
+    const normalizedChunk = normalizeMatchText(chunkText);
 
+    if (
+      normalizedChunk.includes('total') ||
+      normalizedChunk.includes('summary') ||
+      normalizedChunk.includes('daily ending balance')
+) {
+  return;
+}
+    const chunkAmountMatches = [...chunkText.matchAll(amountRegex)];
+    const chunkDateMatches = [...chunkText.matchAll(/\b\d{2}\/\d{2}\b/g)];
+
+    if (!entryDate || !parsedAmount) return;
+    if (!parsedAmount.amount || Number(parsedAmount.amount) <= 0) return;
+    if (shouldSkipText(chunkText) || shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
+
+    if (chunkAmountMatches.length > 1) return;
+    if (chunkDateMatches.length > 1) return;
+    
     const categoryGuess = guessCategoryFromText(description);
-    const detectedType = detectStatementEntryType(description, parsedAmount.direction);
-    const key = `${entryDate}|${description}|${parsedAmount.amount}|${detectedType}`;
-
-    if (seen.has(key)) return;
-    seen.add(key);
-
-    transactions.push({
+    const detectedType = detectStatementEntryType(description, fallbackType || parsedAmount.direction);
+    const transaction = {
       entry_date: entryDate,
       amount: parsedAmount.amount,
       vendor_or_payor: description.slice(0, 80),
       description: `Imported from statement: ${description}`.slice(0, 200),
       category: categoryGuess.category,
-      confidence: categoryGuess.confidence,
+      confidence: 'low',
       entry_type: detectedType
-    });
+    };
+
+    if (!isValidTransactionRow(transaction)) return;
+
+    transaction.confidence = calculateTransactionConfidence(transaction);
+
+    const key = buildTransactionKey(transaction);
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    transactions.push(transaction);
   }
 
-  for (let i = 0; i < rawLines.length; i++) {
-    let line = cleanChaseLine(rawLines[i]);
-    if (shouldSkipLine(line)) continue;
+  function extractRowTransactionsFromSection(section, fallbackType) {
+  const beforeCount = transactions.length;
+  const rows = [];
+  let currentRow = '';
 
-    if (!/^\d{2}\/\d{2}\b/.test(line)) continue;
+  section.lines.forEach(line => {
+    const normalizedLine = normalizeStatementInline(line);
+   if (!normalizedLine || isTotalRowLine(normalizedLine)) return;
 
-    const oneLineMatch = line.match(
-      /^(\d{2}\/\d{2})(?:\s+(\d{2}\/\d{2}))?\s+(.+?)\s+(-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2}))$/
-    );
+    const segments = splitLineIntoDateStartSegments(normalizedLine);
 
-    if (oneLineMatch) {
-      const rawDate = oneLineMatch[1];
-      const rawDescription = cleanChaseLine(oneLineMatch[3]);
-      const rawAmount = oneLineMatch[4];
-      pushTransaction(rawDate, rawDescription, rawAmount);
-      continue;
-    }
+    segments.forEach(segment => {
+      const cleanSegment = cleanStatementChunk(segment);
+      if (!cleanSegment) return;
 
-    const startsWithDate = line.match(/^(\d{2}\/\d{2})\s+(.+)$/);
-    if (!startsWithDate) continue;
+      const startsWithDate = /^\d{2}\/\d{2}\b/.test(cleanSegment);
+      const hasAmount = !!findLastAmountMatch(cleanSegment);
 
-    const rawDate = startsWithDate[1];
-    let descriptionParts = [cleanChaseLine(startsWithDate[2])];
-    let rawAmount = null;
-
-    for (let j = i + 1; j < rawLines.length; j++) {
-      let nextLine = cleanChaseLine(rawLines[j]);
-
-      if (shouldSkipLine(nextLine)) break;
-      if (/^\d{2}\/\d{2}\b/.test(nextLine)) break;
-
-      if (/^-?\$?\d{1,3}(?:,\d{3})*(?:\.\d{2})$/.test(nextLine)) {
-        rawAmount = nextLine;
-        i = j;
-        break;
+      if (startsWithDate && hasAmount) {
+        if (currentRow) {
+          rows.push(currentRow);
+          currentRow = '';
+        }
+        rows.push(cleanSegment);
+        return;
       }
 
-      descriptionParts.push(nextLine);
-      i = j;
-    }
+      if (startsWithDate) {
+        if (currentRow) rows.push(currentRow);
+        currentRow = cleanSegment;
+        return;
+      }
 
-    if (rawAmount) {
-      pushTransaction(rawDate, descriptionParts.join(' '), rawAmount);
-    }
+      if (currentRow) {
+        currentRow = `${currentRow} ${cleanSegment}`.trim();
+      }
+    });
+  });
+
+  if (currentRow) rows.push(currentRow);
+
+  rows.forEach(row => {
+    const rowText = cleanStatementChunk(row);
+    const rawDateMatch = rowText.match(/^\d{2}\/\d{2}\b/);
+    const amountMatch = findLastAmountMatch(rowText);
+    if (!rawDateMatch || !amountMatch) return;
+
+    const rawDate = rawDateMatch[0];
+    const rawAmount = amountMatch[0];
+    const rawDescription = rowText
+      .slice(rawDate.length, amountMatch.index)
+      .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rowText);
+  });
+
+  return transactions.length - beforeCount;
+}
+
+  function collectDateValues(lines) {
+    return lines
+      .map(line => normalizeStatementInline(line))
+      .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line))
+      .flatMap(line => {
+        if (isAmountOnlyLine(line)) return [];
+        if (isDateOnlyLine(line)) return [line];
+        if (/^\d{2}\/\d{2}\b/.test(line) && !findLastAmountMatch(line)) return [line.match(/^\d{2}\/\d{2}\b/)[0]];
+        return [];
+      });
   }
 
-  return transactions;
+ function collectAmountValues(lines) {
+  return lines
+    .map(line => normalizeStatementInline(line))
+    .filter(line => line && !isIgnorableSectionLine(line) && !isTotalRowLine(line))
+    .flatMap(line => {
+      if (isDateOnlyLine(line)) return [];
+      if (line.toLowerCase().includes('daily ending balance')) return [];
+
+      if (isAmountOnlyLine(line)) return [line];
+
+      if (!/^\d{2}\/\d{2}\b/.test(line)) {
+        const matches = [...line.matchAll(amountRegex)].map(match => match[0]);
+        return matches;
+      }
+
+      return [];
+    });
+}
+
+  function collectDescriptionCandidates(lines) {
+    return lines
+      .map(line => cleanStatementChunk(line)
+        .replace(dateRegex, ' ')
+        .replace(amountReplaceRegex, ' ')
+        .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim())
+      .filter(line => line && !containsSummaryKeyword(line) && !isHeadingLine(line) && !isDateOnlyLine(line) && !isAmountOnlyLine(line));
+  }
+
+  function analyzeColumnStructure(section, rowCount) {
+    const lines = section.lines.map(line => normalizeStatementInline(line)).filter(Boolean);
+    const dates = collectDateValues(lines);
+    const amounts = collectAmountValues(lines);
+    const descriptions = collectDescriptionCandidates(lines);
+    const alignedCount = Math.min(dates.length, amounts.length);
+    const countDifference = Math.abs(dates.length - amounts.length);
+    const dateOnlyCount = lines.filter(isDateOnlyLine).length;
+    const amountOnlyCount = lines.filter(isAmountOnlyLine).length;
+    const hasColumnSignals = dateOnlyCount >= 2 || amountOnlyCount >= 2 || (lines.some(isHeadingLine) && rowCount === 0);
+    const isColumnMode =
+      section.id === 'electronic_withdrawals'
+        ? true
+        : hasColumnSignals && alignedCount > rowCount && alignedCount > 0;
+
+    return {
+      isColumnMode,
+      dates,
+      amounts,
+      descriptions,
+      alignedCount,
+      countDifference
+    };
+  }
+
+function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
+  const beforeCount = transactions.length;
+
+  const rowCandidates = [];
+  const orphanAmounts = [];
+
+  section.lines.forEach(line => {
+   const normalizedLine = normalizeStatementInline(line);
+   if (!normalizedLine) return;
+   if (isTotalRowLine(normalizedLine)) return;
+    const segments = splitLineIntoDateStartSegments(normalizedLine);
+
+    segments.forEach(segment => {
+      const cleanSegment = cleanStatementChunk(segment);
+      if (!cleanSegment) return;
+
+      const startsWithDate = /^\d{2}\/\d{2}\b/.test(cleanSegment);
+      const amountOnly = isAmountOnlyLine(cleanSegment);
+
+            if (startsWithDate) {
+        const rawDateMatch = cleanSegment.match(/^\d{2}\/\d{2}\b/);
+        if (!rawDateMatch) return;
+
+        const rawDate = rawDateMatch[0];
+        const remainder = cleanSegment.slice(rawDate.length).trim();
+        const inlineAmountMatch = findLastAmountMatch(remainder);
+        const cleanedRemainder = cleanStatementChunk(remainder);
+
+        const lastCandidate = rowCandidates[rowCandidates.length - 1];
+        const lastDescriptionNormalized = normalizeMatchText(lastCandidate?.rawDescription || '');
+
+        if (
+          !inlineAmountMatch &&
+          lastCandidate &&
+          lastCandidate.rawDate === rawDate &&
+          (!lastDescriptionNormalized || lastDescriptionNormalized === 'unknown transaction')
+        ) {
+          lastCandidate.rawDescription = cleanedRemainder || lastCandidate.rawDescription;
+          return;
+        }
+
+        if (inlineAmountMatch) {
+          const rawAmount = inlineAmountMatch[0];
+          const rawDescription = cleanStatementChunk(
+            remainder.slice(0, inlineAmountMatch.index)
+          );
+
+          pushTransaction(
+            rawDate,
+            rawDescription,
+            rawAmount,
+            fallbackType,
+            cleanSegment
+          );
+        } else {
+          rowCandidates.push({
+            rawDate,
+            rawDescription: cleanedRemainder || 'Unknown Transaction'
+          });
+        }
+
+        return;
+      }
+
+      if (amountOnly) {
+        const unmatchedCount = rowCandidates.length - orphanAmounts.length;
+        const nextPendingRow = rowCandidates[orphanAmounts.length];
+        const nextDescription = normalizeMatchText(nextPendingRow?.rawDescription || '');
+
+        if (unmatchedCount !== 1) return;
+        if (!nextDescription) return;
+        if (nextDescription === 'unknown transaction') return;
+        if (nextDescription.includes('summary')) return;
+        if (nextDescription.includes('total')) return;
+        if (nextDescription.includes('daily ending balance')) return;
+
+        orphanAmounts.push(cleanSegment);
+        return;
+      }
+
+      if (rowCandidates.length > 0) {
+        const lastIndex = rowCandidates.length - 1;
+        rowCandidates[lastIndex].rawDescription = cleanStatementChunk(
+          `${rowCandidates[lastIndex].rawDescription} ${cleanSegment}`
+        );
+      }
+    });
+  });
+
+  rowCandidates.forEach((row, index) => {
+    const rawAmount = orphanAmounts[index];
+    if (!rawAmount) return;
+
+    pushTransaction(
+      row.rawDate,
+      row.rawDescription,
+      rawAmount,
+      fallbackType,
+      `${row.rawDate} ${row.rawDescription} ${rawAmount}`
+    );
+  });
+
+  return transactions.length - beforeCount;
+}
+  
+ function processStatementSection(section) {
+  let rowCount = 0;
+  let columnCount = 0;
+
+  rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
+  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+
+  console.log('SECTION DEBUG:', {
+    id: section.id,
+    fallbackType: section.fallbackType,
+    lineCount: section.lines.length,
+    rowCount,
+    columnCount,
+    preferredMode: columnCount > rowCount ? 'column' : 'row',
+    firstFiveLines: section.lines.slice(0, 5)
+  });
+}
+ const sections = extractStatementSections(rawText);
+
+console.log('SECTIONS FOUND:', sections.map(s => s.id));
+
+sections.forEach(processStatementSection);
+  
+  const finalSeen = new Set();
+
+  return transactions
+    .filter(isValidTransactionRow)
+    .filter(transaction => {
+      const key = buildTransactionKey(transaction);
+      if (finalSeen.has(key)) return false;
+      finalSeen.add(key);
+      return true;
+    })
+    .sort((a, b) => String(b.entry_date || '').localeCompare(String(a.entry_date || '')));
 }
 
 async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
@@ -554,24 +1321,6 @@ async function analyzeDocumentWithGoogle(doc, fileBuffer, mimeType) {
     extractEntityText(entities, 'vendor_name') ||
     '';
 
- let cleanedVendor = rawVendor;
-
-if (!cleanedVendor && fullText) {
-  const lines = fullText.split('\n').map(l => l.trim()).filter(Boolean);
-  if (lines.length > 0) {
-    cleanedVendor = lines[0]; // first line is often vendor name
-  }
-}
-
-cleanedVendor = cleanedVendor
-  .replace(/\s+/g, ' ')
-  .replace(/^[^a-zA-Z0-9]+/, '')
-  .trim();
-
-if (cleanedVendor.length > 60) {
-  cleanedVendor = cleanedVendor.slice(0, 60).trim();
-}
-  
   const rawDate =
     extractEntityText(entities, 'invoice_date') ||
     extractEntityText(entities, 'receipt_date') ||
@@ -587,12 +1336,19 @@ if (cleanedVendor.length > 60) {
     fullText || '',
   ].join(' ');
 
+  const cleanedVendor = cleanReceiptVendor(rawVendor, fullText);
+
   if (String(doc.document_type || '').toLowerCase() === 'statement') {
     const fallbackYear =
       doc.period_year ||
       new Date().getFullYear();
 
     const transactions = parseStatementTransactionsFromText(fullText, fallbackYear);
+
+    console.log('STATEMENT PARSE DEBUG:', {
+      transactionCount: transactions.length,
+      firstThree: transactions.slice(0, 3)
+    });
 
     return {
       amount: transactions[0]?.amount || '0.00',
@@ -607,16 +1363,33 @@ if (cleanedVendor.length > 60) {
   }
 
   const categoryGuess = guessCategoryFromText(combinedText);
+  const normalizedAmount = normalizeAmount(rawAmount) || '0.00';
+  const normalizedDate = normalizeReceiptDate(
+    rawDate,
+    doc.period_year || new Date().getFullYear()
+  ) || new Date().toISOString().slice(0, 10);
+  const entryType = detectReceiptEntryType(doc.document_type, combinedText);
 
-  return {
-    amount: normalizeAmount(rawAmount) || '0.00',
-    vendor_or_payor: cleanedVendor || '',
-    entry_date: rawDate || new Date().toISOString().slice(0, 10),
+  const receiptAnalysis = {
+    amount: normalizedAmount,
+    vendor_or_payor: cleanedVendor || 'Unknown Vendor',
+    entry_date: normalizedDate,
     category: categoryGuess.category,
-    confidence: categoryGuess.confidence,
+    confidence: 'low',
+    entry_type: entryType,
     description: 'Draft created from document analysis',
     raw_text_preview: fullText.slice(0, 1000),
   };
+
+  receiptAnalysis.confidence = calculateReceiptConfidence(receiptAnalysis);
+
+  if (!isValidReceiptAnalysis(receiptAnalysis)) {
+    receiptAnalysis.amount = '0.00';
+    receiptAnalysis.vendor_or_payor = 'Unknown Vendor';
+    receiptAnalysis.confidence = 'low';
+  }
+
+  return receiptAnalysis;
 }
 app.get('/', (req, res) => {
   res.json({ message: '1099 Document Portal API is running' });
@@ -1588,7 +2361,7 @@ app.post('/api/documents/:documentId/analyze', requireStaffAuth, async (req, res
       document_type: refreshedDoc.document_type || 'other',
       category: refreshedDoc.category || analysis.category || 'Uncategorized',
       suggested: {
-        entry_type: doc.document_type === 'invoice' ? 'income' : 'expense',
+        entry_type: analysis.entry_type || (doc.document_type === 'invoice' ? 'income' : 'expense'),
         amount: analysis.amount || '0.00',
         entry_date: analysis.entry_date || new Date().toISOString().slice(0, 10),
         category: analysis.category || 'Uncategorized',
@@ -1723,7 +2496,7 @@ app.post('/api/documents/analyze-batch/:contractorId', requireStaffAuth, async (
       category: refreshedDoc.category || analysis.category || 'Uncategorized',
       status: 'success',
       suggested: {
-        entry_type: refreshedDoc.document_type === 'invoice' ? 'income' : 'expense',
+        entry_type: analysis.entry_type || (refreshedDoc.document_type === 'invoice' ? 'income' : 'expense'),
         amount: analysis.amount || '0.00',
         entry_date: analysis.entry_date || new Date().toISOString().slice(0, 10),
         category: analysis.category || 'Uncategorized',
@@ -1747,14 +2520,15 @@ app.post('/api/documents/analyze-batch/:contractorId', requireStaffAuth, async (
   }
 }
 
-const successCount = results.filter(r => r.status === 'success').length;
-const errorCount = results.filter(r => r.status === 'error').length;
+const cleanedResults = finalizeBatchReceiptResults(results);
+const successCount = cleanedResults.filter(r => r.status === 'success').length;
+const errorCount = cleanedResults.filter(r => r.status === 'error').length;
 
 res.json({
-  total: results.length,
+  total: cleanedResults.length,
   success_count: successCount,
   error_count: errorCount,
-  results
+  results: cleanedResults
 });
 
   } catch (err) {
