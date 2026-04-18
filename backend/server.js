@@ -967,6 +967,15 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     const description = weakDescription ? 'Unknown Transaction' : cleanedDescription;
 
     const chunkText = cleanStatementChunk(rawChunk || `${rawDate} ${rawDescription} ${rawAmount}`);
+    const normalizedChunk = normalizeMatchText(chunkText);
+
+    if (
+      normalizedChunk.includes('total') ||
+      normalizedChunk.includes('summary') ||
+      normalizedChunk.includes('daily ending balance')
+) {
+  return;
+}
     const chunkAmountMatches = [...chunkText.matchAll(amountRegex)];
     const chunkDateMatches = [...chunkText.matchAll(/\b\d{2}\/\d{2}\b/g)];
 
@@ -1007,7 +1016,7 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
 
   section.lines.forEach(line => {
     const normalizedLine = normalizeStatementInline(line);
-    if (isIgnorableSectionLine(normalizedLine) || isTotalRowLine(normalizedLine)) return;
+   if (!normalizedLine || isTotalRowLine(normalizedLine)) return;
 
     const segments = splitLineIntoDateStartSegments(normalizedLine);
 
@@ -1137,7 +1146,6 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
   section.lines.forEach(line => {
     const normalizedLine = normalizeStatementInline(line);
     if (!normalizedLine) return;
-    if (isIgnorableSectionLine(normalizedLine)) return;
     if (isTotalRowLine(normalizedLine)) return;
 
     const segments = splitLineIntoDateStartSegments(normalizedLine);
