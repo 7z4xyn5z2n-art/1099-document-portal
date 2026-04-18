@@ -980,9 +980,6 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     if (!parsedAmount.amount || Number(parsedAmount.amount) <= 0) return;
     if (shouldSkipText(chunkText) || shouldSkipText(cleanedDescription) || shouldSkipText(description)) return;
 
-    if (chunkAmountMatches.length > 1) return;
-    if (chunkDateMatches.length > 1) return;
-    
     const categoryGuess = guessCategoryFromText(description);
     const detectedType = detectStatementEntryType(description, fallbackType || parsedAmount.direction);
     const transaction = {
@@ -1198,17 +1195,11 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
         return;
       }
 
-      if (amountOnly) {
-        const unmatchedCount = rowCandidates.length - orphanAmounts.length;
-        const nextPendingRow = rowCandidates[orphanAmounts.length];
-        const nextDescription = normalizeMatchText(nextPendingRow?.rawDescription || '');
+            if (amountOnly) {
+        const pendingIndex = orphanAmounts.length;
+        const pendingRow = rowCandidates[pendingIndex];
 
-        if (unmatchedCount !== 1) return;
-        if (!nextDescription) return;
-        if (nextDescription === 'unknown transaction') return;
-        if (nextDescription.includes('summary')) return;
-        if (nextDescription.includes('total')) return;
-        if (nextDescription.includes('daily ending balance')) return;
+        if (!pendingRow) return;
 
         orphanAmounts.push(cleanSegment);
         return;
@@ -1243,8 +1234,12 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
   let rowCount = 0;
   let columnCount = 0;
 
+  if (section.id === 'electronic_withdrawals') {
+  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
+} else {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
   columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
+}
 
   console.log('SECTION DEBUG:', {
     id: section.id,
