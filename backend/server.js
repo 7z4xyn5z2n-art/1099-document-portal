@@ -821,6 +821,42 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     return !normalizedLine || isHeadingLine(normalizedLine) || isDisallowedBoundaryLine(normalizedLine);
   }
 
+ function splitLineIntoDateStartSegments(line) {
+  const normalized = cleanStatementChunk(line);
+  if (!normalized) return [];
+
+  const matches = [...normalized.matchAll(/\b\d{2}\/\d{2}\b/g)];
+  if (matches.length <= 1 || matches[0].index !== 0) {
+    return [normalized];
+  }
+
+  const segments = [];
+  let start = 0;
+
+  for (let i = 1; i < matches.length; i += 1) {
+    const nextIndex = matches[i].index;
+    const currentSlice = normalized.slice(start, nextIndex).trim();
+    const remainingSlice = normalized.slice(nextIndex).trim();
+
+    const currentAmountCount = [...currentSlice.matchAll(amountRegex)].length;
+    const remainingAmountCount = [...remainingSlice.matchAll(amountRegex)].length;
+    const alphaAfterDate = currentSlice
+      .replace(/^\d{2}\/\d{2}\b/, '')
+      .replace(/[^A-Za-z]/g, '')
+      .length;
+
+    if (currentAmountCount >= 1 && remainingAmountCount >= 1 && alphaAfterDate >= 2) {
+      segments.push(currentSlice);
+      start = nextIndex;
+    }
+  }
+
+  const tail = normalized.slice(start).trim();
+  if (tail) segments.push(tail);
+
+  return segments.length ? segments : [normalized];
+}
+  
  function extractStatementSections(text) {
   const lines = splitStatementLines(text);
   const sections = [];
@@ -947,58 +983,65 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   }
 
   function extractRowTransactionsFromSection(section, fallbackType) {
-    const beforeCount = transactions.length;
-    const rows = [];
-    let currentRow = '';
+  const beforeCount = transactions.length;
+  const rows = [];
+  let currentRow = '';
 
-    section.lines.forEach(line => {
-  const normalizedLine = normalizeStatementInline(line);
-  if (isIgnorableSectionLine(normalizedLine) || isTotalRowLine(normalizedLine)) return;
+  section.lines.forEach(line => {
+    const normalizedLine = normalizeStatementInline(line);
+    if (isIgnorableSectionLine(normalizedLine) || isTotalRowLine(normalizedLine)) return;
 
-  const startsWithDate = /^\d{2}\/\d{2}\b/.test(normalizedLine);
-  const hasAmount = !!findLastAmountMatch(normalizedLine);
+    const segments = splitLineIntoDateStartSegments(normalizedLine);
 
-  if (startsWithDate && hasAmount) {
-    if (currentRow) {
-      rows.push(currentRow);
-      currentRow = '';
-    }
-    rows.push(normalizedLine);
-    return;
-  }
+    segments.forEach(segment => {
+      const cleanSegment = cleanStatementChunk(segment);
+      if (!cleanSegment) return;
 
-  if (startsWithDate) {
-    if (currentRow) rows.push(currentRow);
-    currentRow = normalizedLine;
-    return;
-  }
+      const startsWithDate = /^\d{2}\/\d{2}\b/.test(cleanSegment);
+      const hasAmount = !!findLastAmountMatch(cleanSegment);
 
-  if (currentRow) {
-    currentRow = `${currentRow} ${normalizedLine}`.trim();
-  }
-});
+      if (startsWithDate && hasAmount) {
+        if (currentRow) {
+          rows.push(currentRow);
+          currentRow = '';
+        }
+        rows.push(cleanSegment);
+        return;
+      }
 
-    if (currentRow) rows.push(currentRow);
+      if (startsWithDate) {
+        if (currentRow) rows.push(currentRow);
+        currentRow = cleanSegment;
+        return;
+      }
 
-    rows.forEach(row => {
-      const rowText = cleanStatementChunk(row);
-      const rawDateMatch = rowText.match(/^\d{2}\/\d{2}\b/);
-      const amountMatch = findLastAmountMatch(rowText);
-      if (!rawDateMatch || !amountMatch) return;
-
-      const rawDate = rawDateMatch[0];
-      const rawAmount = amountMatch[0];
-      const rawDescription = rowText
-        .slice(rawDate.length, amountMatch.index)
-        .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rowText);
+      if (currentRow) {
+        currentRow = `${currentRow} ${cleanSegment}`.trim();
+      }
     });
+  });
 
-    return transactions.length - beforeCount;
-  }
+  if (currentRow) rows.push(currentRow);
+
+  rows.forEach(row => {
+    const rowText = cleanStatementChunk(row);
+    const rawDateMatch = rowText.match(/^\d{2}\/\d{2}\b/);
+    const amountMatch = findLastAmountMatch(rowText);
+    if (!rawDateMatch || !amountMatch) return;
+
+    const rawDate = rawDateMatch[0];
+    const rawAmount = amountMatch[0];
+    const rawDescription = rowText
+      .slice(rawDate.length, amountMatch.index)
+      .replace(/\b(?:DATE|DESCRIPTION|AMOUNT)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    pushTransaction(rawDate, rawDescription, rawAmount, fallbackType, rowText);
+  });
+
+  return transactions.length - beforeCount;
+}
 
   function collectDateValues(lines) {
     return lines
@@ -1067,90 +1110,76 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
     };
   }
 
-  function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
-  const analysis = analyzeColumnStructure(section, rowCount);
-  if (!analysis.isColumnMode) return 0;
-
+function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
   const beforeCount = transactions.length;
 
-  const lines = section.lines
-  .map(line => normalizeStatementInline(line))
-  .filter(line => {
-    if (!line) return false;
-    if (isIgnorableSectionLine(line)) return false;
-    if (isTotalRowLine(line)) return false;
-    if (/^total\s+/i.test(line)) return false;
-    if (/total\s+(deposits|withdrawals|additions)/i.test(line)) return false;
-    if (/^page\s+\d+/i.test(line)) return false;
-    return true;
-  });
-    
   const rowCandidates = [];
   const orphanAmounts = [];
-  let hasSeenTransactionRow = false;
-    
-  lines.forEach(line => {
-    if (isHeadingLine(line)) return;
 
-    // DATE + DESCRIPTION LINE
-    if (/^\d{2}\/\d{2}\b/.test(line)) {
-      const match = line.match(/^\d{2}\/\d{2}\b/);
-      if (!match) return;
+  section.lines.forEach(line => {
+    const normalizedLine = normalizeStatementInline(line);
+    if (!normalizedLine) return;
+    if (isIgnorableSectionLine(normalizedLine)) return;
+    if (isTotalRowLine(normalizedLine)) return;
 
-      const rawDate = match[0];
-      hasSeenTransactionRow = true;
-      const remainder = cleanStatementChunk(line.slice(rawDate.length));
+    const segments = splitLineIntoDateStartSegments(normalizedLine);
 
-      const inlineAmounts = [...remainder.matchAll(amountRegex)].map(m => m[0]);
-      const descOnly = cleanStatementChunk(remainder.replace(amountReplaceRegex, ' '));
+    segments.forEach(segment => {
+      const cleanSegment = cleanStatementChunk(segment);
+      if (!cleanSegment) return;
 
-      if (inlineAmounts.length > 0) {
-        // FULL ROW (date + desc + amount)
-        const rawAmount = inlineAmounts[inlineAmounts.length - 1];
+      const startsWithDate = /^\d{2}\/\d{2}\b/.test(cleanSegment);
+      const amountOnly = isAmountOnlyLine(cleanSegment);
 
-        pushTransaction(
-          rawDate,
-          descOnly || 'Unknown Transaction',
-          rawAmount,
-          fallbackType,
-          `${rawDate} ${descOnly} ${rawAmount}`
-        );
-      } else {
-        // STORE for later pairing
-        rowCandidates.push({
-          rawDate,
-          rawDescription: descOnly || 'Unknown Transaction'
-        });
+      if (startsWithDate) {
+        const rawDateMatch = cleanSegment.match(/^\d{2}\/\d{2}\b/);
+        if (!rawDateMatch) return;
+
+        const rawDate = rawDateMatch[0];
+        const remainder = cleanSegment.slice(rawDate.length).trim();
+        const inlineAmountMatch = findLastAmountMatch(remainder);
+
+        if (inlineAmountMatch) {
+          const rawAmount = inlineAmountMatch[0];
+          const rawDescription = cleanStatementChunk(
+            remainder.slice(0, inlineAmountMatch.index)
+          );
+
+          pushTransaction(
+            rawDate,
+            rawDescription,
+            rawAmount,
+            fallbackType,
+            cleanSegment
+          );
+        } else {
+          rowCandidates.push({
+            rawDate,
+            rawDescription: cleanStatementChunk(remainder) || 'Unknown Transaction'
+          });
+        }
+
+        return;
       }
 
-      return;
-    }
+      if (amountOnly) {
+        if (rowCandidates.length > orphanAmounts.length) {
+          orphanAmounts.push(cleanSegment);
+        }
+        return;
+      }
 
-    // AMOUNT-ONLY LINE
-    if (isAmountOnlyLine(line)) {
-  const hasUnmatchedRowCandidate = rowCandidates.length > orphanAmounts.length;
-
-  if (hasSeenTransactionRow && hasUnmatchedRowCandidate) {
-    orphanAmounts.push(line);
-  }
-
-  return;
-}
-    // CONTINUATION DESCRIPTION
-    const cleaned = cleanStatementChunk(line);
-    if (!cleaned) return;
-
-    if (rowCandidates.length > 0 && !findLastAmountMatch(cleaned)) {
-      const last = rowCandidates.length - 1;
-      rowCandidates[last].rawDescription = cleanStatementChunk(
-        `${rowCandidates[last].rawDescription} ${cleaned}`
-      );
-    }
+      if (rowCandidates.length > 0) {
+        const lastIndex = rowCandidates.length - 1;
+        rowCandidates[lastIndex].rawDescription = cleanStatementChunk(
+          `${rowCandidates[lastIndex].rawDescription} ${cleanSegment}`
+        );
+      }
+    });
   });
 
-  // PAIR rows to amounts BY INDEX
-  rowCandidates.forEach((row, i) => {
-    const rawAmount = orphanAmounts[i];
+  rowCandidates.forEach((row, index) => {
+    const rawAmount = orphanAmounts[index];
     if (!rawAmount) return;
 
     pushTransaction(
@@ -1169,21 +1198,8 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   let rowCount = 0;
   let columnCount = 0;
 
- if (section.id === 'deposits_additions') {
   rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
   columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
-} else if (
-  section.id === 'atm_debit_withdrawals' ||
-  section.id === 'electronic_withdrawals'
-) {
-  columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, 0);
-} else {
-  rowCount = extractRowTransactionsFromSection(section, section.fallbackType);
-
-  if (rowCount === 0) {
-    columnCount = reconstructTransactionsFromColumns(section, section.fallbackType, rowCount);
-  }
-}
 
   console.log('SECTION DEBUG:', {
     id: section.id,
