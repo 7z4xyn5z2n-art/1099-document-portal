@@ -775,9 +775,18 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
   if (!matchText) return null;
 
   if (
-    /\bdeposits?\b/.test(matchText) &&
-    /\badditions?\b/.test(matchText)
-  ) {
+    (
+      /\bdeposits?\b/.test(matchText) ||
+      /\bcredits?\b/.test(matchText) ||
+      /\bmoney\s+in\b/.test(matchText)
+    ) &&
+    (
+      /\badditions?\b/.test(matchText) ||
+      /\breceived\b/.test(matchText) ||
+      /\bincoming\b/.test(matchText) ||
+      /\bcredits?\b/.test(matchText)
+    )
+) {
     return allowedSectionDefinitions.find(definition => definition.id === 'deposits_additions') || null;
   }
 
@@ -818,7 +827,9 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
 
   function isIgnorableSectionLine(line) {
     const normalizedLine = normalizeStatementInline(line);
-    return !normalizedLine || isHeadingLine(normalizedLine) || isDisallowedBoundaryLine(normalizedLine);
+    if (!normalizedLine) return true;
+    if (isHeadingLine(normalizedLine)) return true;
+    return false;
   }
 
  function splitLineIntoDateStartSegments(line) {
@@ -1138,13 +1149,27 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
       const startsWithDate = /^\d{2}\/\d{2}\b/.test(cleanSegment);
       const amountOnly = isAmountOnlyLine(cleanSegment);
 
-      if (startsWithDate) {
+            if (startsWithDate) {
         const rawDateMatch = cleanSegment.match(/^\d{2}\/\d{2}\b/);
         if (!rawDateMatch) return;
 
         const rawDate = rawDateMatch[0];
         const remainder = cleanSegment.slice(rawDate.length).trim();
         const inlineAmountMatch = findLastAmountMatch(remainder);
+        const cleanedRemainder = cleanStatementChunk(remainder);
+
+        const lastCandidate = rowCandidates[rowCandidates.length - 1];
+        const lastDescriptionNormalized = normalizeMatchText(lastCandidate?.rawDescription || '');
+
+        if (
+          !inlineAmountMatch &&
+          lastCandidate &&
+          lastCandidate.rawDate === rawDate &&
+          (!lastDescriptionNormalized || lastDescriptionNormalized === 'unknown transaction')
+        ) {
+          lastCandidate.rawDescription = cleanedRemainder || lastCandidate.rawDescription;
+          return;
+        }
 
         if (inlineAmountMatch) {
           const rawAmount = inlineAmountMatch[0];
@@ -1162,7 +1187,7 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
         } else {
           rowCandidates.push({
             rawDate,
-            rawDescription: cleanStatementChunk(remainder) || 'Unknown Transaction'
+            rawDescription: cleanedRemainder || 'Unknown Transaction'
           });
         }
 
@@ -1170,9 +1195,17 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
       }
 
       if (amountOnly) {
-        if (rowCandidates.length > orphanAmounts.length) {
-          orphanAmounts.push(cleanSegment);
-        }
+        const hasPendingRow = rowCandidates.length > orphanAmounts.length;
+        const lastRow = hasPendingRow ? rowCandidates[rowCandidates.length - 1] : null;
+        const lastDescription = normalizeMatchText(lastRow?.rawDescription || '');
+
+        if (!hasPendingRow) return;
+        if (!lastDescription) return;
+        if (lastDescription.includes('summary')) return;
+        if (lastDescription.includes('total')) return;
+        if (lastDescription.includes('daily ending balance')) return;
+
+        orphanAmounts.push(cleanSegment);
         return;
       }
 
