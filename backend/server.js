@@ -923,16 +923,15 @@ function parseStatementTransactionsFromText(fullText, fallbackYear) {
        if (!currentSection) continue;
 
     if (
-      isTotalRowLine(line) ||
-      /^total\s+/i.test(line) ||
-      /total\s+deposits?\s*(?:and|&)?\s*additions?/i.test(line) ||
-      /total\s+atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals?/i.test(line) ||
-      /total\s+electronic\s*withdrawals?/i.test(line) ||
-      /total\s+other\s*withdrawals?/i.test(line)
-    ) {
-      finishCurrentSection();
-      continue;
-    }
+  isTotalRowLine(line) ||
+  /^total\s+/i.test(line) ||
+  /total\s+deposits?\s*(?:and|&)?\s*additions?/i.test(line) ||
+  /total\s+atm\s*(?:&|and)?\s*debit(?:\s*card)?\s*withdrawals?/i.test(line) ||
+  /total\s+electronic\s*withdrawals?/i.test(line) ||
+  /total\s+other\s*withdrawals?/i.test(line)
+) {
+  continue;
+}
     if (
       /checking\s*summary/i.test(line) ||
       /daily\s*ending\s*balance/i.test(line) ||
