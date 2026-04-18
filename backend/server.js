@@ -1196,14 +1196,7 @@ function reconstructTransactionsFromColumns(section, fallbackType, rowCount) {
 
       if (amountOnly) {
         const hasPendingRow = rowCandidates.length > orphanAmounts.length;
-        const lastRow = hasPendingRow ? rowCandidates[rowCandidates.length - 1] : null;
-        const lastDescription = normalizeMatchText(lastRow?.rawDescription || '');
-
         if (!hasPendingRow) return;
-        if (!lastDescription) return;
-        if (lastDescription.includes('summary')) return;
-        if (lastDescription.includes('total')) return;
-        if (lastDescription.includes('daily ending balance')) return;
 
         orphanAmounts.push(cleanSegment);
         return;
