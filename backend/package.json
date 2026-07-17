@@ -4,6 +4,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "test": "node --test test/*.test.js",
     "migrate": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down"
   },
